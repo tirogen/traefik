@@ -7,14 +7,18 @@ import (
 	"github.com/go-kit/kit/metrics"
 	"github.com/traefik/traefik/v2/pkg/log"
 
+	"github.com/go-kit/kit/metrics"
 	"github.com/go-kit/kit/metrics/generic"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api"
+	"github.com/traefik/traefik/v2/pkg/log"
 	"github.com/traefik/traefik/v2/pkg/types"
 )
 
-var influxDB2Client influxdb2.Client
-var influxDB2WriteAPI api.WriteAPI
+var (
+	influxDB2Client   influxdb2.Client
+	influxDB2WriteAPI api.WriteAPI
+)
 
 const (
 	influxDB2MetricsServiceReqsName      = "traefik_service_requests_total"
@@ -33,6 +37,7 @@ const (
 	influxDB2ServerUpName                = "traefik_service_server_up"
 )
 
+// RegisterInfluxDB2 creates metrics exporter for InfluxDB2.
 func RegisterInfluxDB2(ctx context.Context, config *types.InfluxDB2) Registry {
 	if influxDB2Client == nil {
 		flushMs := uint(time.Duration(config.PushInterval).Milliseconds())
@@ -82,7 +87,7 @@ func RegisterInfluxDB2(ctx context.Context, config *types.InfluxDB2) Registry {
 	return registry
 }
 
-// StopInfluxDB2 flushes and removes InfluxDB2 client and WriteAPI
+// StopInfluxDB2 flushes and removes InfluxDB2 client and WriteAPI.
 func StopInfluxDB2() {
 	if influxDB2WriteAPI != nil {
 		influxDB2WriteAPI.Flush()
