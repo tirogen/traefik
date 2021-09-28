@@ -77,9 +77,11 @@ func NewKubernetesStore(namespace, endpoint string) (*KubernetesStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create in-cluster configuration: %w", err)
 	}
+
 	if endpoint != "" {
 		config.Host = endpoint
 	}
+
 	store.client, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create kubernetes clientset: %w", err)

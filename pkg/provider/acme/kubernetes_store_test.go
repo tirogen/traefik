@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"math/rand"
-	"os"
 	"reflect"
 	"strconv"
 	"sync"
@@ -12,13 +11,57 @@ import (
 	"time"
 
 	"github.com/go-acme/lego/v4/certcrypto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/traefik/traefik/v2/pkg/types"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/clientcmd"
 )
+
+func TestKubernetesStore(t *testing.T) {
+	resolver := "resolver01"
+	testCases := []struct {
+		desc    string
+		account Account
+	}{
+		{desc: "Empty"},
+		{
+			desc: "With account",
+			account: Account{
+				Email:      "john@example.org",
+				PrivateKey: []byte("0123456789"),
+				KeyType:    certcrypto.RSA2048,
+			},
+		},
+	}
+
+	for _, test := range testCases {
+		test := test
+
+		t.Run(test.desc, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			store := &KubernetesStore{
+				ctx:    ctx,
+				mutex:  &sync.Mutex{},
+				cache:  make(map[string]v1.Secret),
+				client: fake.NewSimpleClientset(),
+			}
+
+			err := store.SaveAccount(resolver, &test.account)
+			assert.NoError(t, err)
+
+			got, err := store.GetAccount(resolver)
+			assert.NoError(t, err)
+
+			if !reflect.DeepEqual(test.account, *got) {
+				t.Errorf("expected account %v, got %v instead",
+					test.account, *got)
+			}
+		})
+	}
+}
 
 func setup(t *testing.T) (*KubernetesStore, string) {
 	t.Helper()
@@ -32,27 +75,15 @@ func setup(t *testing.T) (*KubernetesStore, string) {
 		namespace: namespace,
 		mutex:     &sync.Mutex{},
 		cache:     make(map[string]v1.Secret),
+		client:    fake.NewSimpleClientset(),
 	}
 
-	if os.Getenv("USE_MINIKUBE") != "" {
-		config, err := clientcmd.BuildConfigFromFlags("", os.ExpandEnv("$HOME/.kube/config"))
-		if err != nil {
-			t.Fatalf("failed to open kubernetes config: %v", err)
-		}
-		store.client, err = kubernetes.NewForConfig(config)
-		if err != nil {
-			t.Fatalf("failed to create kubernetes client: %v", err)
-		}
-	} else {
-		client := fake.NewSimpleClientset()
-		store.client = client
-	}
-
-	_, _ = store.client.CoreV1().Namespaces().Create(context.Background(), &v1.Namespace{
+	_, err := store.client.CoreV1().Namespaces().Create(context.Background(), &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespace,
 		},
 	}, metav1.CreateOptions{})
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		_ = store.client.CoreV1().Namespaces().Delete(context.Background(), namespace, metav1.DeleteOptions{})
