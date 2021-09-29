@@ -14,7 +14,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -67,7 +66,7 @@ func KubernetesStoreFromURI(uri string) (*KubernetesStore, error) {
 // It will create a clientset with the default 'in-cluster' config.
 func NewKubernetesStore(namespace, endpoint string) (*KubernetesStore, error) {
 	store := &KubernetesStore{
-		ctx:       context.Background(),
+		ctx:       context.WithValue(context.Background(), log.ProviderName, "acme"),
 		namespace: namespace,
 		mutex:     &sync.Mutex{},
 		cache:     make(map[string]v1.Secret),
@@ -87,7 +86,7 @@ func NewKubernetesStore(namespace, endpoint string) (*KubernetesStore, error) {
 		return nil, fmt.Errorf("failed to create kubernetes clientset: %w", err)
 	}
 
-	go store.watcher()
+	// go store.watcher()
 
 	return store, nil
 }
@@ -265,38 +264,6 @@ func (s *KubernetesStore) SaveCertificates(resolverName string, certs []*CertAnd
 	s.cache[resolverName] = *secret
 
 	return nil
-}
-
-func (s *KubernetesStore) watcher() {
-	logger := log.WithoutContext().WithField(log.ProviderName, "acme")
-
-	watcher, err := s.client.CoreV1().Secrets(s.namespace).Watch(s.ctx, metav1.ListOptions{
-		Watch:         true,
-		LabelSelector: LabelACMEStorage + "=true",
-	})
-	if err != nil {
-		logger.Fatalf("failed to start a watch on kuberetes secrets for acme storage: %v", err)
-	}
-	defer watcher.Stop()
-
-	for event := range watcher.ResultChan() {
-		if event.Type != watch.Added && event.Type != watch.Modified {
-			continue
-		}
-
-		secret, ok := event.Object.(*v1.Secret)
-		if !ok {
-			logger.Warn("kubernetes watch event was not of type secret")
-
-			continue
-		}
-		resolver := secret.Labels[LabelResolver]
-		if resolver != "" {
-			s.mutex.Lock()
-			s.cache[resolver] = *secret
-			s.mutex.Unlock()
-		}
-	}
 }
 
 func (s *KubernetesStore) getSecretLocked(resolverName string) (*v1.Secret, error) {
