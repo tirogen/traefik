@@ -50,10 +50,10 @@ func TestKubernetesStoreAccounts(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 			store := &KubernetesStore{
-				ctx:    ctx,
-				mutex:  &sync.Mutex{},
-				cache:  make(map[string]v1.Secret),
-				client: fake.NewSimpleClientset(),
+				ctx:        ctx,
+				lock:       &sync.Mutex{},
+				storedData: make(map[string]v1.Secret),
+				client:     fake.NewSimpleClientset(),
 			}
 
 			got, err := store.GetAccount(resolver)
@@ -137,10 +137,10 @@ func TestKubernetesStoreCertificates(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 			store := &KubernetesStore{
-				ctx:    ctx,
-				mutex:  &sync.Mutex{},
-				cache:  make(map[string]v1.Secret),
-				client: fake.NewSimpleClientset(),
+				ctx:        ctx,
+				lock:       &sync.Mutex{},
+				storedData: make(map[string]v1.Secret),
+				client:     fake.NewSimpleClientset(),
 			}
 
 			err := store.SaveCertificates(resolver, test.certs)

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"sort"
 	"sync"
 
 	"github.com/traefik/traefik/v2/pkg/log"
@@ -40,8 +39,8 @@ type KubernetesStore struct {
 	namespace string
 	client    kubernetes.Interface
 
-	mutex *sync.Mutex
-	cache map[string]v1.Secret
+	lock       *sync.Mutex
+	storedData map[string]*StoredData
 }
 
 // KubernetesStoreFromURI will create a new KubernetesStore instance from the
@@ -66,10 +65,10 @@ func KubernetesStoreFromURI(uri string) (*KubernetesStore, error) {
 // It will create a clientset with the default 'in-cluster' config.
 func NewKubernetesStore(namespace, endpoint string) (*KubernetesStore, error) {
 	store := &KubernetesStore{
-		ctx:       context.WithValue(context.Background(), log.ProviderName, "acme"),
-		namespace: namespace,
-		mutex:     &sync.Mutex{},
-		cache:     make(map[string]v1.Secret),
+		ctx:        log.With(context.Background(), log.Str(log.ProviderName, "k8s-secret-acme")),
+		namespace:  namespace,
+		lock:       &sync.Mutex{},
+		storedData: make(map[string]*StoredData),
 	}
 
 	config, err := rest.InClusterConfig()
@@ -86,63 +85,59 @@ func NewKubernetesStore(namespace, endpoint string) (*KubernetesStore, error) {
 		return nil, fmt.Errorf("failed to create kubernetes clientset: %w", err)
 	}
 
-	// go store.watcher()
-
 	return store, nil
 }
 
-// GetAccount returns the account information for the given resolverName, this
-// either from cache (which is maintained by the watcher and Save* operations)
-// or it will fetch the resource fresh.
-func (s *KubernetesStore) GetAccount(resolverName string) (*Account, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+func (s *KubernetesStore) save(resolverName string, storedData *StoredData) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
-	secret, err := s.getSecretLocked(resolverName)
-	if secret == nil || err != nil {
-		return nil, err
-	}
+	logger := log.FromContext(s.ctx)
 
-	accountData, found := secret.Data["account"]
-	if !found || len(accountData) == 0 {
-		return nil, nil
-	}
-
-	account := &Account{}
-	err = json.Unmarshal(secret.Data["account"], account)
+	dataAccount, err := json.MarshalIndent(storedData.Account, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal account from secret data: %w", err)
-	}
-
-	return account, nil
-}
-
-// SaveAccount will patch the kubernetes secret resource for the given
-// resolverName with the given account data. When the secret did not exist it is
-// created with the correct labels set.
-func (s *KubernetesStore) SaveAccount(resolverName string, account *Account) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	data, err := json.Marshal(account)
-	if err != nil {
-		return fmt.Errorf("failed to marshale account: %w", err)
+		return err
 	}
 
 	patches := []patch{
 		{
 			Op:    "replace",
 			Path:  "/data/account",
-			Value: data,
+			Value: dataAccount,
 		},
 	}
 
-	payload, _ := json.Marshal(patches)
-	secret, err := s.client.CoreV1().Secrets(s.namespace).Patch(s.ctx, secretName(resolverName), types.JSONPatchType, payload, metav1.PatchOptions{FieldManager: FieldManager})
+	creationData := make(map[string][]byte)
+	for _, cert := range storedData.Certificates {
+		if cert.Domain.Main == "" {
+			logger.Warn("not saving a certificate without a main domainname")
+			continue
+		}
 
-	status := &k8serrors.StatusError{}
+		data, err := json.Marshal(cert)
+		if err != nil {
+			return fmt.Errorf("failed to marshale account: %w", err)
+		}
+
+		patches = append(patches, patch{
+			Op:    "replace",
+			Path:  "/data/" + cert.Domain.Main,
+			Value: data,
+		})
+
+		creationData[cert.Domain.Main] = data
+	}
+
+	payload, err := json.MarshalIndent(patches, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	var status k8serrors.StatusError
+	_, err = s.client.CoreV1().Secrets(s.namespace).Patch(s.ctx, secretName(resolverName), types.JSONPatchType, payload, metav1.PatchOptions{FieldManager: FieldManager})
 	if err != nil && errors.As(err, &status) && status.Status().Code == 404 {
-		secret = &v1.Secret{
+		logger.Debugf("got error %+v when writing ACME Secret, writing...", err)
+		secret := &v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: secretName(resolverName),
 				Labels: map[string]string{
@@ -154,56 +149,105 @@ func (s *KubernetesStore) SaveAccount(resolverName string, account *Account) err
 				"account": data,
 			},
 		}
-		secret, err = s.client.CoreV1().Secrets(s.namespace).Create(s.ctx, secret, metav1.CreateOptions{FieldManager: FieldManager})
+		_, err = s.client.CoreV1().Secrets(s.namespace).Create(s.ctx, secret, metav1.CreateOptions{FieldManager: FieldManager})
 	}
 	if err != nil {
-		return fmt.Errorf("failed to patch secret: %w", err)
+		return err
 	}
 
-	s.cache[resolverName] = *secret
+	s.storedData[resolverName] = storedData
 
 	return nil
 }
 
-// GetCertificates returns all certificates for the given resolverName, this
-// either from cache (which is maintained by the watcher and Save* operations)
+func (s *KubernetesStore) get(resolverName string) (*StoredData, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if s.storedData == nil {
+		s.storedData = make(map[string]*StoredData)
+		secret, err := s.client.CoreV1().Secrets(s.namespace).Get(s.ctx, secretName(resolverName), metav1.GetOptions{})
+		status := &k8serrors.StatusError{}
+		if err != nil && errors.As(err, &status) && status.Status().Code == 404 {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch secret %q: %w", secretName(resolverName), err)
+		}
+		if err := json.Unmarshal(secret.Data["account"], s.storedData[resolverName].Account); err != nil {
+			return nil, err
+		}
+
+		for domain, data := range secret.Data {
+			if domain == "account" {
+				continue
+			}
+
+			var certAndStore CertAndStore
+			if err = json.Unmarshal(data, &certAndStore); err != nil {
+				return nil, err
+			}
+
+			if domain != certAndStore.Domain.Main {
+				log.FromContext(s.ctx).Warnf("mismatch in cert domain and secret keyname: %q != %q", domain, certAndStore.Domain.Main)
+			}
+
+			s.storedData[resolverName].Certificates = append(s.storedData[resolverName].Certificates, &certAndStore)
+		}
+	}
+
+	if s.storedData[resolverName] == nil {
+		s.storedData[resolverName] = &StoredData{}
+	}
+
+	return s.storedData[resolverName], nil
+}
+
+// GetAccount returns the account information for the given resolverName, this
+// either from storedData (which is maintained by the watcher and Save* operations)
 // or it will fetch the resource fresh.
-func (s *KubernetesStore) GetCertificates(resolverName string) ([]*CertAndStore, error) {
-	logger := log.WithoutContext().WithField(log.ProviderName, "acme")
+func (s *KubernetesStore) GetAccount(resolverName string) (*Account, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	secret, err := s.getSecretLocked(resolverName)
+	secret, err := s.get(resolverName)
 	if secret == nil || err != nil {
 		return nil, err
 	}
 
-	var result []*CertAndStore
+	return secret.Account, nil
+}
 
-	for domain, data := range secret.Data {
-		if domain == "account" {
-			continue
-		}
+// SaveAccount will patch the kubernetes secret resource for the given
+// resolverName with the given account data. When the secret did not exist it is
+// created with the correct labels set.
+func (s *KubernetesStore) SaveAccount(resolverName string, account *Account) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
-		certAndStore := &CertAndStore{}
-		err = json.Unmarshal(data, certAndStore)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal domain %q from secret data: %w", domain, err)
-		}
-
-		if domain != certAndStore.Domain.Main {
-			logger.Warnf("mismatch in cert domain and secret keyname: %q != %q", domain, certAndStore.Domain.Main)
-		}
-
-		result = append(result, certAndStore)
+	storedData, err := s.get(resolverName)
+	if err != nil {
+		return err
 	}
 
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Domain.Main < result[j].Domain.Main
-	})
+	storedData.Account = account
 
-	return result, nil
+	return s.save(resolverName, storedData)
+}
+
+// GetCertificates returns all certificates for the given resolverName, this
+// either from storedData (which is maintained by the watcher and Save* operations)
+// or it will fetch the resource fresh.
+func (s *KubernetesStore) GetCertificates(resolverName string) ([]*CertAndStore, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	secret, err := s.get(resolverName)
+	if secret == nil || err != nil {
+		return nil, err
+	}
+
+	return secret.Certificates, nil
 }
 
 // SaveCertificates will patch the kubernetes secret resource for the given
@@ -212,8 +256,8 @@ func (s *KubernetesStore) GetCertificates(resolverName string) ([]*CertAndStore,
 func (s *KubernetesStore) SaveCertificates(resolverName string, certs []*CertAndStore) error {
 	logger := log.WithoutContext().WithField(log.ProviderName, "acme")
 
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
 	patches := []patch{}
 	creationData := make(map[string][]byte)
@@ -261,26 +305,9 @@ func (s *KubernetesStore) SaveCertificates(resolverName string, certs []*CertAnd
 		return fmt.Errorf("failed to patch secret: %w", err)
 	}
 
-	s.cache[resolverName] = *secret
+	s.storedData[resolverName] = *secret
 
 	return nil
-}
-
-func (s *KubernetesStore) getSecretLocked(resolverName string) (*v1.Secret, error) {
-	if _, found := s.cache[resolverName]; !found {
-		secret, err := s.client.CoreV1().Secrets(s.namespace).Get(s.ctx, secretName(resolverName), metav1.GetOptions{})
-		status := &k8serrors.StatusError{}
-		if err != nil && errors.As(err, &status) && status.Status().Code == 404 {
-			return nil, nil
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch secret %q: %w", secretName(resolverName), err)
-		}
-		s.cache[resolverName] = *secret
-	}
-	secret := s.cache[resolverName]
-
-	return &secret, nil
 }
 
 type patch struct {
