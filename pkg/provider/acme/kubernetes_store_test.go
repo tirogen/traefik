@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/traefik/traefik/v2/pkg/types"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -52,7 +51,7 @@ func TestKubernetesStoreAccounts(t *testing.T) {
 			store := &KubernetesStore{
 				ctx:        ctx,
 				lock:       &sync.Mutex{},
-				storedData: make(map[string]v1.Secret),
+				storedData: make(map[string]*StoredData),
 				client:     fake.NewSimpleClientset(),
 			}
 
@@ -139,7 +138,7 @@ func TestKubernetesStoreCertificates(t *testing.T) {
 			store := &KubernetesStore{
 				ctx:        ctx,
 				lock:       &sync.Mutex{},
-				storedData: make(map[string]v1.Secret),
+				storedData: make(map[string]*StoredData),
 				client:     fake.NewSimpleClientset(),
 			}
 

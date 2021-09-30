@@ -146,7 +146,7 @@ func (s *KubernetesStore) save(resolverName string, storedData *StoredData) erro
 				},
 			},
 			Data: map[string][]byte{
-				"account": data,
+				"account": payload,
 			},
 		}
 		_, err = s.client.CoreV1().Secrets(s.namespace).Create(s.ctx, secret, metav1.CreateOptions{FieldManager: FieldManager})
@@ -254,60 +254,17 @@ func (s *KubernetesStore) GetCertificates(resolverName string) ([]*CertAndStore,
 // resolverName with the given certificates. When the secret did not exist it is
 // created with the correct labels set.
 func (s *KubernetesStore) SaveCertificates(resolverName string, certs []*CertAndStore) error {
-	logger := log.WithoutContext().WithField(log.ProviderName, "acme")
-
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	patches := []patch{}
-	creationData := make(map[string][]byte)
-
-	for _, cert := range certs {
-		if cert.Domain.Main == "" {
-			logger.Warn("not saving a certificate without a main domainname")
-
-			continue
-		}
-
-		data, err := json.Marshal(cert)
-		if err != nil {
-			return fmt.Errorf("failed to marshale account: %w", err)
-		}
-
-		patches = append(patches, patch{
-			Op:    "replace",
-			Path:  "/data/" + cert.Domain.Main,
-			Value: data,
-		})
-
-		creationData[cert.Domain.Main] = data
-	}
-
-	payload, _ := json.Marshal(patches)
-	secret, err := s.client.CoreV1().Secrets(s.namespace).Patch(s.ctx, secretName(resolverName), types.JSONPatchType, payload, metav1.PatchOptions{})
-
-	status := &k8serrors.StatusError{}
-	if err != nil && errors.As(err, &status) && status.Status().Code == 404 {
-		secret = &v1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: secretName(resolverName),
-				Labels: map[string]string{
-					LabelACMEStorage: "true",
-					LabelResolver:    resolverName,
-				},
-			},
-			Data: creationData,
-		}
-		secret, err = s.client.CoreV1().Secrets(s.namespace).Create(s.ctx, secret, metav1.CreateOptions{FieldManager: FieldManager})
-	}
-
+	storedData, err := s.get(resolverName)
 	if err != nil {
-		return fmt.Errorf("failed to patch secret: %w", err)
+		return err
 	}
 
-	s.storedData[resolverName] = *secret
+	storedData.Certificates = certs
 
-	return nil
+	return s.save(resolverName, storedData)
 }
 
 type patch struct {
