@@ -41,6 +41,28 @@ type Configuration struct {
 	DNSChallenge   *DNSChallenge  `description:"Activate DNS-01 Challenge." json:"dnsChallenge,omitempty" toml:"dnsChallenge,omitempty" yaml:"dnsChallenge,omitempty" label:"allowEmpty" file:"allowEmpty"`
 	HTTPChallenge  *HTTPChallenge `description:"Activate HTTP-01 Challenge." json:"httpChallenge,omitempty" toml:"httpChallenge,omitempty" yaml:"httpChallenge,omitempty" label:"allowEmpty" file:"allowEmpty"`
 	TLSChallenge   *TLSChallenge  `description:"Activate TLS-ALPN-01 Challenge." json:"tlsChallenge,omitempty" toml:"tlsChallenge,omitempty" yaml:"tlsChallenge,omitempty" label:"allowEmpty" file:"allowEmpty"`
+
+	// SecreName as conf ?
+
+	// Option 0
+	// info in Storage
+	// kubernetes://endpoint/namespace
+
+	// Option 1
+	K8sEndpoint  string `description:"TODO" json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	K8sNamespace string `description:"TODO" json:"namespace,omitempty" toml:"namespace,omitempty" yaml:"namespace,omitempty"`
+
+	// Option 2
+	Secret *k8sSecretStorage `description:"TODO" json:"secret,omitempty" toml:"secret,omitempty" yaml:"secret,omitempty"`
+
+	// Option 3
+	// Get conf from static conf
+	providerName string
+}
+
+type k8sSecretStorage struct {
+	Endpoint  string `description:"TODO" json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	Namespace string `description:"TODO" json:"namespace,omitempty" toml:"namespace,omitempty" yaml:"namespace,omitempty"`
 }
 
 // SetDefaults sets the default values.

@@ -64,6 +64,10 @@ func KubernetesStoreFromURI(uri string) (*KubernetesStore, error) {
 // clientset and start a resource watcher for stored sercrets.
 // It will create a clientset with the default 'in-cluster' config.
 func NewKubernetesStore(namespace, endpoint string) (*KubernetesStore, error) {
+	if namespace == "" {
+		namespace = "default"
+	}
+
 	store := &KubernetesStore{
 		ctx:        log.With(context.Background(), log.Str(log.ProviderName, "k8s-secret-acme")),
 		namespace:  namespace,
@@ -107,10 +111,9 @@ func (s *KubernetesStore) save(resolverName string, storedData *StoredData) erro
 		},
 	}
 
-	creationData := make(map[string][]byte)
 	for _, cert := range storedData.Certificates {
 		if cert.Domain.Main == "" {
-			logger.Warn("not saving a certificate without a main domainname")
+			logger.Warn("not saving a certificate without a main domain name")
 			continue
 		}
 
@@ -124,8 +127,6 @@ func (s *KubernetesStore) save(resolverName string, storedData *StoredData) erro
 			Path:  "/data/" + cert.Domain.Main,
 			Value: data,
 		})
-
-		creationData[cert.Domain.Main] = data
 	}
 
 	payload, err := json.MarshalIndent(patches, "", "  ")
@@ -133,7 +134,7 @@ func (s *KubernetesStore) save(resolverName string, storedData *StoredData) erro
 		return err
 	}
 
-	var status k8serrors.StatusError
+	status := &k8serrors.StatusError{}
 	_, err = s.client.CoreV1().Secrets(s.namespace).Patch(s.ctx, secretName(resolverName), types.JSONPatchType, payload, metav1.PatchOptions{FieldManager: FieldManager})
 	if err != nil && errors.As(err, &status) && status.Status().Code == 404 {
 		logger.Debugf("got error %+v when writing ACME Secret, writing...", err)
@@ -168,12 +169,13 @@ func (s *KubernetesStore) get(resolverName string) (*StoredData, error) {
 		s.storedData = make(map[string]*StoredData)
 		secret, err := s.client.CoreV1().Secrets(s.namespace).Get(s.ctx, secretName(resolverName), metav1.GetOptions{})
 		status := &k8serrors.StatusError{}
-		if err != nil && errors.As(err, &status) && status.Status().Code == 404 {
-			return nil, nil
-		}
 		if err != nil {
+			if errors.As(err, &status) && status.Status().Code == 404 {
+				return nil, nil
+			}
 			return nil, fmt.Errorf("failed to fetch secret %q: %w", secretName(resolverName), err)
 		}
+
 		if err := json.Unmarshal(secret.Data["account"], s.storedData[resolverName].Account); err != nil {
 			return nil, err
 		}
@@ -207,9 +209,6 @@ func (s *KubernetesStore) get(resolverName string) (*StoredData, error) {
 // either from storedData (which is maintained by the watcher and Save* operations)
 // or it will fetch the resource fresh.
 func (s *KubernetesStore) GetAccount(resolverName string) (*Account, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	secret, err := s.get(resolverName)
 	if secret == nil || err != nil {
 		return nil, err
@@ -222,9 +221,6 @@ func (s *KubernetesStore) GetAccount(resolverName string) (*Account, error) {
 // resolverName with the given account data. When the secret did not exist it is
 // created with the correct labels set.
 func (s *KubernetesStore) SaveAccount(resolverName string, account *Account) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	storedData, err := s.get(resolverName)
 	if err != nil {
 		return err
@@ -239,9 +235,6 @@ func (s *KubernetesStore) SaveAccount(resolverName string, account *Account) err
 // either from storedData (which is maintained by the watcher and Save* operations)
 // or it will fetch the resource fresh.
 func (s *KubernetesStore) GetCertificates(resolverName string) ([]*CertAndStore, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	secret, err := s.get(resolverName)
 	if secret == nil || err != nil {
 		return nil, err
@@ -254,9 +247,6 @@ func (s *KubernetesStore) GetCertificates(resolverName string) ([]*CertAndStore,
 // resolverName with the given certificates. When the secret did not exist it is
 // created with the correct labels set.
 func (s *KubernetesStore) SaveCertificates(resolverName string, certs []*CertAndStore) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	storedData, err := s.get(resolverName)
 	if err != nil {
 		return err

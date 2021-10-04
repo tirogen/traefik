@@ -142,10 +142,14 @@ func TestKubernetesStoreCertificates(t *testing.T) {
 				client:     fake.NewSimpleClientset(),
 			}
 
-			err := store.SaveCertificates(resolver, test.certs)
+			got, err := store.GetCertificates(resolver)
+			require.NoError(t, err)
+			require.Nil(t, got)
+
+			err = store.SaveCertificates(resolver, test.certs)
 			require.NoError(t, err)
 
-			got, err := store.GetCertificates(resolver)
+			got, err = store.GetCertificates(resolver)
 			require.NoError(t, err)
 
 			if !reflect.DeepEqual(test.certs, got) {

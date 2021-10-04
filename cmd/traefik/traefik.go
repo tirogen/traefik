@@ -342,9 +342,11 @@ func initACMEProvider(c *static.Configuration, providerAggregator *aggregator.Pr
 	for name, resolver := range c.CertificatesResolvers {
 		if resolver.ACME != nil {
 			if stores[resolver.ACME.Storage] == nil {
-				if strings.HasPrefix(resolver.ACME.Storage, "kubernetes://") {
+				// if resolver.ACME.K8sEndpoint+resolver.ACME.K8sNamespace != "" { // option 1
+				if resolver.ACME.Secret != nil { // Option 2
 					var err error
-					stores[resolver.ACME.Storage], err = acme.KubernetesStoreFromURI(resolver.ACME.Storage)
+					// stores[resolver.ACME.Storage], err = acme.KubernetesStoreFromURI(resolver.ACME.Storage) // Option 0
+					stores[resolver.ACME.Storage], err = acme.NewKubernetesStore(resolver.ACME.K8sNamespace, resolver.ACME.K8sEndpoint)
 					if err != nil {
 						log.WithoutContext().Errorf("The ACME resolver %q is skipped from the resolvers list because: %v", name, err)
 						continue
