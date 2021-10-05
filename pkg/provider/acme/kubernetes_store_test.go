@@ -48,11 +48,12 @@ func TestKubernetesStoreAccounts(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
-			store := &KubernetesStore{
+			store := &KubernetesSecretStore{
 				ctx:        ctx,
 				lock:       &sync.Mutex{},
 				storedData: make(map[string]*StoredData),
 				client:     fake.NewSimpleClientset(),
+				secretName: "test-secret",
 			}
 
 			got, err := store.GetAccount(resolver)
@@ -135,11 +136,12 @@ func TestKubernetesStoreCertificates(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
-			store := &KubernetesStore{
+			store := &KubernetesSecretStore{
 				ctx:        ctx,
 				lock:       &sync.Mutex{},
 				storedData: make(map[string]*StoredData),
 				client:     fake.NewSimpleClientset(),
+				secretName: "test-secret",
 			}
 
 			got, err := store.GetCertificates(resolver)

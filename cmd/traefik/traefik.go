@@ -341,27 +341,29 @@ func initACMEProvider(c *static.Configuration, providerAggregator *aggregator.Pr
 	var resolvers []*acme.Provider
 	for name, resolver := range c.CertificatesResolvers {
 		if resolver.ACME != nil {
-			if stores[resolver.ACME.Storage] == nil {
-				// if resolver.ACME.K8sEndpoint+resolver.ACME.K8sNamespace != "" { // option 1
-				if resolver.ACME.Secret != nil { // Option 2
-					var err error
-					// stores[resolver.ACME.Storage], err = acme.KubernetesStoreFromURI(resolver.ACME.Storage) // Option 0
-					stores[resolver.ACME.Storage], err = acme.NewKubernetesStore(resolver.ACME.K8sNamespace, resolver.ACME.K8sEndpoint)
-					if err != nil {
-						log.WithoutContext().Errorf("The ACME resolver %q is skipped from the resolvers list because: %v", name, err)
-						continue
-					}
-				} else {
-					stores[resolver.ACME.Storage] = acme.NewLocalStore(resolver.ACME.Storage)
-				}
-			}
-
 			p := &acme.Provider{
 				Configuration:         resolver.ACME,
-				Store:                 stores[resolver.ACME.Storage],
 				ResolverName:          name,
 				HTTPChallengeProvider: httpChallengeProvider,
 				TLSChallengeProvider:  tlsChallengeProvider,
+			}
+
+			if resolver.ACME.Localstorage != nil && stores[resolver.ACME.Localstorage.FileName] == nil {
+				stores[resolver.ACME.Localstorage.FileName] = acme.NewLocalStore(resolver.ACME.Localstorage.FileName)
+				p.Store = stores[resolver.ACME.Localstorage.FileName]
+			} else if resolver.ACME.Secret != nil && stores[resolver.ACME.Secret.String()] == nil {
+				store, err := acme.NewKubernetesSecretStore(resolver.ACME.Secret)
+				if err != nil {
+					log.WithoutContext().Errorf("The ACME resolver %q is skipped from the resolvers list because: %v", name, err)
+					continue
+				}
+				stores[resolver.ACME.Secret.String()] = store
+				p.Store = stores[resolver.ACME.Secret.String()]
+			}
+
+			if stores[resolver.ACME.Storage] == nil {
+				stores[resolver.ACME.Storage] = acme.NewLocalStore(resolver.ACME.Storage)
+				p.Store = stores[resolver.ACME.Storage]
 			}
 
 			if err := providerAggregator.AddProvider(p); err != nil {

@@ -93,7 +93,7 @@ func TestDo_globalConfiguration(t *testing.T) {
 			ACME: &acme.Configuration{
 				Email:        "acme Email",
 				CAServer:     "CAServer",
-				Storage:      "Storage",
+				Storage:      "FileName",
 				KeyType:      "MyKeyType",
 				DNSChallenge: &acme.DNSChallenge{Provider: "DNSProvider"},
 				HTTPChallenge: &acme.HTTPChallenge{

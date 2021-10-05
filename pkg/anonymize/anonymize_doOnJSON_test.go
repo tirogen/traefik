@@ -49,7 +49,7 @@ func Test_doOnJSON(t *testing.T) {
     "SANs": null
    }
   ],
-  "Storage": "",
+  "FileName": "",
   "StorageFile": "/acme/acme.json",
   "OnDemand": true,
   "OnHostRule": true,
@@ -133,7 +133,7 @@ func Test_doOnJSON(t *testing.T) {
     "SANs": null
    }
   ],
-  "Storage": "",
+  "FileName": "",
   "StorageFile": "/acme/acme.json",
   "OnDemand": true,
   "OnHostRule": true,

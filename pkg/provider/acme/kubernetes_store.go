@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"sync"
 
 	"github.com/traefik/traefik/v2/pkg/log"
@@ -28,49 +27,33 @@ const LabelResolver = "traefik.ingress.kubernetes.io/resolver"
 // stored.
 const LabelACMEStorage = "traefik.ingress.kubernetes.io/acme-storage"
 
-// KubernetesStore stores ACME account and certificates Kubernetes secrets.
+// KubernetesSecretStore stores ACME account and certificates Kubernetes secrets.
 // Each resolver gets it's own secrets and each domain is stored as a separate
 // value in the secret.
 // All secrets managed by this store well get the label
 // `traefik.ingress.kubernetes.io/acme-storage=true`.
-type KubernetesStore struct {
+type KubernetesSecretStore struct {
 	ctx context.Context
 
-	namespace string
-	client    kubernetes.Interface
+	namespace  string
+	secretName string
+	client     kubernetes.Interface
 
 	lock       *sync.Mutex
 	storedData map[string]*StoredData
 }
 
-// KubernetesStoreFromURI will create a new KubernetesStore instance from the
-// given URI with this format: `kubernetes://:endpoint:/:namespace:`. The endpoint
-// (or host:port part) of the uri is optional. Example: `kubernetes:///default`
-func KubernetesStoreFromURI(uri string) (*KubernetesStore, error) {
-	u, err := url.Parse(uri)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse %q: %w", uri, err)
-	}
-	namespace := u.Path[1:]
-	endpoint := ""
-	if u.Host != "" {
-		endpoint = u.Host
+// NewKubernetesSecretStore will initiate a new KubernetesSecretStore, create a Kubernetes
+// clientset with the default 'in-cluster' config.
+func NewKubernetesSecretStore(storage *K8sSecretStorage) (*KubernetesSecretStore, error) {
+	if storage.Namespace == "" {
+		storage.Namespace = "default"
 	}
 
-	return NewKubernetesStore(namespace, endpoint)
-}
-
-// NewKubernetesStore will initiate a new KubernetesStore, create a Kubernetes
-// clientset and start a resource watcher for stored sercrets.
-// It will create a clientset with the default 'in-cluster' config.
-func NewKubernetesStore(namespace, endpoint string) (*KubernetesStore, error) {
-	if namespace == "" {
-		namespace = "default"
-	}
-
-	store := &KubernetesStore{
-		ctx:        log.With(context.Background(), log.Str(log.ProviderName, "k8s-secret-acme")),
-		namespace:  namespace,
+	store := &KubernetesSecretStore{
+		ctx:        log.With(context.Background(), log.Str(log.ProviderName, "k8s-secret-acme"), log.Str("SecretName", storage.SecretName)),
+		namespace:  storage.Namespace,
+		secretName: storage.SecretName,
 		lock:       &sync.Mutex{},
 		storedData: make(map[string]*StoredData),
 	}
@@ -80,8 +63,8 @@ func NewKubernetesStore(namespace, endpoint string) (*KubernetesStore, error) {
 		return nil, fmt.Errorf("failed to create in-cluster configuration: %w", err)
 	}
 
-	if endpoint != "" {
-		config.Host = endpoint
+	if storage.Endpoint != "" {
+		config.Host = storage.Endpoint
 	}
 
 	store.client, err = kubernetes.NewForConfig(config)
@@ -92,7 +75,7 @@ func NewKubernetesStore(namespace, endpoint string) (*KubernetesStore, error) {
 	return store, nil
 }
 
-func (s *KubernetesStore) save(resolverName string, storedData *StoredData) error {
+func (s *KubernetesSecretStore) save(resolverName string, storedData *StoredData) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -135,12 +118,12 @@ func (s *KubernetesStore) save(resolverName string, storedData *StoredData) erro
 	}
 
 	status := &k8serrors.StatusError{}
-	_, err = s.client.CoreV1().Secrets(s.namespace).Patch(s.ctx, secretName(resolverName), types.JSONPatchType, payload, metav1.PatchOptions{FieldManager: FieldManager})
+	_, err = s.client.CoreV1().Secrets(s.namespace).Patch(s.ctx, s.secretName, types.JSONPatchType, payload, metav1.PatchOptions{FieldManager: FieldManager})
 	if err != nil && errors.As(err, &status) && status.Status().Code == 404 {
 		logger.Debugf("got error %+v when writing ACME Secret, writing...", err)
 		secret := &v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: secretName(resolverName),
+				Name: s.secretName,
 				Labels: map[string]string{
 					LabelACMEStorage: "true",
 					LabelResolver:    resolverName,
@@ -161,19 +144,19 @@ func (s *KubernetesStore) save(resolverName string, storedData *StoredData) erro
 	return nil
 }
 
-func (s *KubernetesStore) get(resolverName string) (*StoredData, error) {
+func (s *KubernetesSecretStore) get(resolverName string) (*StoredData, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	if s.storedData == nil {
 		s.storedData = make(map[string]*StoredData)
-		secret, err := s.client.CoreV1().Secrets(s.namespace).Get(s.ctx, secretName(resolverName), metav1.GetOptions{})
+		secret, err := s.client.CoreV1().Secrets(s.namespace).Get(s.ctx, s.secretName, metav1.GetOptions{})
 		status := &k8serrors.StatusError{}
 		if err != nil {
 			if errors.As(err, &status) && status.Status().Code == 404 {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("failed to fetch secret %q: %w", secretName(resolverName), err)
+			return nil, fmt.Errorf("failed to fetch secret %q: %w", s.secretName, err)
 		}
 
 		if err := json.Unmarshal(secret.Data["account"], s.storedData[resolverName].Account); err != nil {
@@ -208,7 +191,7 @@ func (s *KubernetesStore) get(resolverName string) (*StoredData, error) {
 // GetAccount returns the account information for the given resolverName, this
 // either from storedData (which is maintained by the watcher and Save* operations)
 // or it will fetch the resource fresh.
-func (s *KubernetesStore) GetAccount(resolverName string) (*Account, error) {
+func (s *KubernetesSecretStore) GetAccount(resolverName string) (*Account, error) {
 	secret, err := s.get(resolverName)
 	if secret == nil || err != nil {
 		return nil, err
@@ -220,7 +203,7 @@ func (s *KubernetesStore) GetAccount(resolverName string) (*Account, error) {
 // SaveAccount will patch the kubernetes secret resource for the given
 // resolverName with the given account data. When the secret did not exist it is
 // created with the correct labels set.
-func (s *KubernetesStore) SaveAccount(resolverName string, account *Account) error {
+func (s *KubernetesSecretStore) SaveAccount(resolverName string, account *Account) error {
 	storedData, err := s.get(resolverName)
 	if err != nil {
 		return err
@@ -234,7 +217,7 @@ func (s *KubernetesStore) SaveAccount(resolverName string, account *Account) err
 // GetCertificates returns all certificates for the given resolverName, this
 // either from storedData (which is maintained by the watcher and Save* operations)
 // or it will fetch the resource fresh.
-func (s *KubernetesStore) GetCertificates(resolverName string) ([]*CertAndStore, error) {
+func (s *KubernetesSecretStore) GetCertificates(resolverName string) ([]*CertAndStore, error) {
 	secret, err := s.get(resolverName)
 	if secret == nil || err != nil {
 		return nil, err
@@ -246,7 +229,7 @@ func (s *KubernetesStore) GetCertificates(resolverName string) ([]*CertAndStore,
 // SaveCertificates will patch the kubernetes secret resource for the given
 // resolverName with the given certificates. When the secret did not exist it is
 // created with the correct labels set.
-func (s *KubernetesStore) SaveCertificates(resolverName string, certs []*CertAndStore) error {
+func (s *KubernetesSecretStore) SaveCertificates(resolverName string, certs []*CertAndStore) error {
 	storedData, err := s.get(resolverName)
 	if err != nil {
 		return err
@@ -261,8 +244,4 @@ type patch struct {
 	Op    string `json:"op"`
 	Path  string `json:"path"`
 	Value []byte `json:"value"`
-}
-
-func secretName(resolverName string) string {
-	return "traefik-acme-" + resolverName + "-storage"
 }
