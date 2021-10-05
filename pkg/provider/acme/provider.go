@@ -47,22 +47,26 @@ type Configuration struct {
 	// Option 0
 	// info in Storage
 	// kubernetes://endpoint/namespace
+	// kubernetes://secretName
+	// consul://...
 
 	// Option 1
 	K8sEndpoint  string `description:"TODO" json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty"`
 	K8sNamespace string `description:"TODO" json:"namespace,omitempty" toml:"namespace,omitempty" yaml:"namespace,omitempty"`
 
 	// Option 2
-	Secret *k8sSecretStorage `description:"TODO" json:"secret,omitempty" toml:"secret,omitempty" yaml:"secret,omitempty"`
+	Secret *K8sSecretStorage `description:"TODO" json:"secret,omitempty" toml:"secret,omitempty" yaml:"secret,omitempty"`
+	// Consul *ConsulStorage
 
 	// Option 3
 	// Get conf from static conf
 	providerName string
 }
 
-type k8sSecretStorage struct {
-	Endpoint  string `description:"TODO" json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty"`
-	Namespace string `description:"TODO" json:"namespace,omitempty" toml:"namespace,omitempty" yaml:"namespace,omitempty"`
+type K8sSecretStorage struct {
+	Endpoint   string `description:"TODO" json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	Namespace  string `description:"TODO" json:"namespace,omitempty" toml:"namespace,omitempty" yaml:"namespace,omitempty"`
+	SecretName string `description:"TODO" json:"secretName,omitempty" toml:"secretName,omitempty" yaml:"secretName,omitempty"`
 }
 
 // SetDefaults sets the default values.
