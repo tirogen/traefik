@@ -31,7 +31,7 @@ type Route struct {
 //	 tls:
 //	   secretName: # block format
 type TLS struct {
-	// SecretName is the name of the referenced Kubernetes Secret to specify the
+	// SecretName is the name of the referenced Kubernetes KubernetesSecret to specify the
 	// certificate details.
 	SecretName string `json:"secretName"`
 	// Options is a reference to a TLSOption, that specifies the parameters of the TLS connection.

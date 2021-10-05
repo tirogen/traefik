@@ -27,7 +27,7 @@ type RouteTCP struct {
 //	 tls:
 //	   secretName: # block format
 type TLSTCP struct {
-	// SecretName is the name of the referenced Kubernetes Secret to specify the
+	// SecretName is the name of the referenced Kubernetes KubernetesSecret to specify the
 	// certificate details.
 	SecretName  string `json:"secretName"`
 	Passthrough bool   `json:"passthrough"`

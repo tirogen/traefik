@@ -32,7 +32,7 @@ type TLSOptionSpec struct {
 
 // ClientAuth defines the parameters of the client authentication part of the TLS connection, if any.
 type ClientAuth struct {
-	// SecretName is the name of the referenced Kubernetes Secret to specify the
+	// SecretName is the name of the referenced Kubernetes KubernetesSecret to specify the
 	// certificate details.
 	SecretNames []string `json:"secretNames"`
 	// ClientAuthType defines the client authentication type to apply.

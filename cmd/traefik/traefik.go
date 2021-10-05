@@ -340,43 +340,47 @@ func initACMEProvider(c *static.Configuration, providerAggregator *aggregator.Pr
 
 	var resolvers []*acme.Provider
 	for name, resolver := range c.CertificatesResolvers {
-		if resolver.ACME != nil {
-			p := &acme.Provider{
-				Configuration:         resolver.ACME,
-				ResolverName:          name,
-				HTTPChallengeProvider: httpChallengeProvider,
-				TLSChallengeProvider:  tlsChallengeProvider,
-			}
+		if resolver.ACME == nil {
+			continue
+		}
 
-			if resolver.ACME.Localstorage != nil && stores[resolver.ACME.Localstorage.FileName] == nil {
-				stores[resolver.ACME.Localstorage.FileName] = acme.NewLocalStore(resolver.ACME.Localstorage.FileName)
-				p.Store = stores[resolver.ACME.Localstorage.FileName]
-			} else if resolver.ACME.Secret != nil && stores[resolver.ACME.Secret.String()] == nil {
-				store, err := acme.NewKubernetesSecretStore(resolver.ACME.Secret)
+		var key string
+		if resolver.ACME.KubernetesSecret != nil {
+			key = resolver.ACME.KubernetesSecret.SecretName + resolver.ACME.KubernetesSecret.Namespace
+			if _, exists := stores[key]; !exists {
+				store, err := acme.NewKubernetesSecretStore(resolver.ACME.KubernetesSecret)
 				if err != nil {
 					log.WithoutContext().Errorf("The ACME resolver %q is skipped from the resolvers list because: %v", name, err)
 					continue
 				}
-				stores[resolver.ACME.Secret.String()] = store
-				p.Store = stores[resolver.ACME.Secret.String()]
+
+				stores[key] = store
 			}
-
-			if stores[resolver.ACME.Storage] == nil {
-				stores[resolver.ACME.Storage] = acme.NewLocalStore(resolver.ACME.Storage)
-				p.Store = stores[resolver.ACME.Storage]
+		} else {
+			key = resolver.ACME.Storage
+			if _, exists := stores[key]; !exists {
+				stores[key] = acme.NewLocalStore(resolver.ACME.Storage)
 			}
-
-			if err := providerAggregator.AddProvider(p); err != nil {
-				log.WithoutContext().Errorf("The ACME resolver %q is skipped from the resolvers list because: %v", name, err)
-				continue
-			}
-
-			p.SetTLSManager(tlsManager)
-
-			p.SetConfigListenerChan(make(chan dynamic.Configuration))
-
-			resolvers = append(resolvers, p)
 		}
+
+		p := &acme.Provider{
+			Configuration:         resolver.ACME,
+			ResolverName:          name,
+			Store:                 stores[key],
+			HTTPChallengeProvider: httpChallengeProvider,
+			TLSChallengeProvider:  tlsChallengeProvider,
+		}
+
+		if err := providerAggregator.AddProvider(p); err != nil {
+			log.WithoutContext().Errorf("The ACME resolver %q is skipped from the resolvers list because: %v", name, err)
+			continue
+		}
+
+		p.SetTLSManager(tlsManager)
+
+		p.SetConfigListenerChan(make(chan dynamic.Configuration))
+
+		resolvers = append(resolvers, p)
 	}
 
 	return resolvers

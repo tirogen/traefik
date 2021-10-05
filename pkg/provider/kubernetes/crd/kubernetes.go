@@ -582,7 +582,7 @@ func buildTLSOptions(ctx context.Context, client Client) map[string]tls.Options 
 			}
 
 			if !exists {
-				logger.Warnf("Secret %s/%s does not exist", tlsOption.Namespace, secretName)
+				logger.Warnf("KubernetesSecret %s/%s does not exist", tlsOption.Namespace, secretName)
 				continue
 			}
 
@@ -644,7 +644,7 @@ func buildTLSStores(ctx context.Context, client Client) map[string]tls.Store {
 			continue
 		}
 		if !exists {
-			logger.Errorf("Secret %s/%s does not exist", namespace, secretName)
+			logger.Errorf("KubernetesSecret %s/%s does not exist", namespace, secretName)
 			continue
 		}
 

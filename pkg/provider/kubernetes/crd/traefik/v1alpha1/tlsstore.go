@@ -26,7 +26,7 @@ type TLSStoreSpec struct {
 
 // DefaultCertificate holds a secret name for the TLSOption resource.
 type DefaultCertificate struct {
-	// SecretName is the name of the referenced Kubernetes Secret to specify the
+	// SecretName is the name of the referenced Kubernetes KubernetesSecret to specify the
 	// certificate details.
 	SecretName string `json:"secretName,omitempty"`
 }

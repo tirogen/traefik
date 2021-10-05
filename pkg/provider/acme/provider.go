@@ -26,6 +26,7 @@ import (
 	traefiktls "github.com/traefik/traefik/v2/pkg/tls"
 	"github.com/traefik/traefik/v2/pkg/types"
 	"github.com/traefik/traefik/v2/pkg/version"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // oscpMustStaple enables OSCP stapling as from https://github.com/go-acme/lego/issues/270.
@@ -41,24 +42,9 @@ type Configuration struct {
 	HTTPChallenge  *HTTPChallenge `description:"Activate HTTP-01 Challenge." json:"httpChallenge,omitempty" toml:"httpChallenge,omitempty" yaml:"httpChallenge,omitempty" label:"allowEmpty" file:"allowEmpty"`
 	TLSChallenge   *TLSChallenge  `description:"Activate TLS-ALPN-01 Challenge." json:"tlsChallenge,omitempty" toml:"tlsChallenge,omitempty" yaml:"tlsChallenge,omitempty" label:"allowEmpty" file:"allowEmpty"`
 
-	// Deprecated: use proper storage type
-	Storage      string            `description:"FileName to use." json:"storage,omitempty" toml:"storage,omitempty" yaml:"storage,omitempty"`
-	Secret       *K8sSecretStorage `description:"TODO" json:"secret,omitempty" toml:"secret,omitempty" yaml:"secret,omitempty"`
-	Localstorage *LocalStorage     `description:"TODO" json:"localStorage,omitempty" toml:"localStorage,omitempty" yaml:"localStorage,omitempty"`
-}
-
-type K8sSecretStorage struct {
-	Endpoint   string `description:"TODO" json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty"`
-	Namespace  string `description:"TODO" json:"namespace,omitempty" toml:"namespace,omitempty" yaml:"namespace,omitempty"`
-	SecretName string `description:"TODO" json:"secretName,omitempty" toml:"secretName,omitempty" yaml:"secretName,omitempty"`
-}
-
-func (s K8sSecretStorage) String() string {
-	return s.SecretName + "-" + s.Endpoint + "-" + s.Namespace
-}
-
-type LocalStorage struct {
-	FileName string `description:"FileName to use." json:"storage,omitempty" toml:"storage,omitempty" yaml:"storage,omitempty"`
+	// FIXME Storage need discussions
+	Storage          string            `description:"FileName to use." json:"storage,omitempty" toml:"storage,omitempty" yaml:"storage,omitempty"`
+	KubernetesSecret *K8sSecretStorage `description:"TODO" json:"kubernetesSecret,omitempty" toml:"kubernetesSecret,omitempty" yaml:"kubernetesSecret,omitempty"`
 }
 
 // SetDefaults sets the default values.
@@ -66,6 +52,17 @@ func (a *Configuration) SetDefaults() {
 	a.CAServer = lego.LEDirectoryProduction
 	a.Storage = "acme.json"
 	a.KeyType = "RSA4096"
+}
+
+type K8sSecretStorage struct {
+	// FIXME should we keep Endpoint?
+	// Endpoint   string `description:"TODO" json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	Namespace  string `description:"TODO" json:"namespace,omitempty" toml:"namespace,omitempty" yaml:"namespace,omitempty"`
+	SecretName string `description:"TODO" json:"secretName,omitempty" toml:"secretName,omitempty" yaml:"secretName,omitempty"`
+}
+
+func (k *K8sSecretStorage) SetDefaults() {
+	k.Namespace = metav1.NamespaceDefault
 }
 
 // CertAndStore allows mapping a TLS certificate to a TLS store.

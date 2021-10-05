@@ -54,7 +54,7 @@ func TestForwardAuthFail(t *testing.T) {
 func TestForwardAuthSuccess(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Auth-User", "user@example.com")
-		w.Header().Set("X-Auth-Secret", "secret")
+		w.Header().Set("X-Auth-KubernetesSecret", "secret")
 		w.Header().Add("X-Auth-Group", "group1")
 		w.Header().Add("X-Auth-Group", "group2")
 		w.Header().Add("Foo-Bar", "auth-value")
@@ -64,7 +64,7 @@ func TestForwardAuthSuccess(t *testing.T) {
 
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "user@example.com", r.Header.Get("X-Auth-User"))
-		assert.Empty(t, r.Header.Get("X-Auth-Secret"))
+		assert.Empty(t, r.Header.Get("X-Auth-KubernetesSecret"))
 		assert.Equal(t, []string{"group1", "group2"}, r.Header["X-Auth-Group"])
 		assert.Equal(t, "auth-value", r.Header.Get("Foo-Bar"))
 		assert.Empty(t, r.Header.Get("Foo-Baz"))

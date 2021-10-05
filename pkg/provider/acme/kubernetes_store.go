@@ -3,7 +3,6 @@ package acme
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -33,159 +32,33 @@ const LabelACMEStorage = "traefik.ingress.kubernetes.io/acme-storage"
 // All secrets managed by this store well get the label
 // `traefik.ingress.kubernetes.io/acme-storage=true`.
 type KubernetesSecretStore struct {
-	ctx context.Context
-
 	namespace  string
 	secretName string
 	client     kubernetes.Interface
 
-	lock       *sync.Mutex
+	lock       sync.Mutex
 	storedData map[string]*StoredData
 }
 
-// NewKubernetesSecretStore will initiate a new KubernetesSecretStore, create a Kubernetes
-// clientset with the default 'in-cluster' config.
+// NewKubernetesSecretStore creates a new KubernetesSecretStore instance.
 func NewKubernetesSecretStore(storage *K8sSecretStorage) (*KubernetesSecretStore, error) {
-	if storage.Namespace == "" {
-		storage.Namespace = "default"
-	}
-
+	// FIXME change namespace by default
 	store := &KubernetesSecretStore{
-		ctx:        log.With(context.Background(), log.Str(log.ProviderName, "k8s-secret-acme"), log.Str("SecretName", storage.SecretName)),
 		namespace:  storage.Namespace,
 		secretName: storage.SecretName,
-		lock:       &sync.Mutex{},
-		storedData: make(map[string]*StoredData),
 	}
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create in-cluster configuration: %w", err)
-	}
-
-	if storage.Endpoint != "" {
-		config.Host = storage.Endpoint
+		return nil, fmt.Errorf("create in-cluster configuration: %w", err)
 	}
 
 	store.client, err = kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create kubernetes clientset: %w", err)
+		return nil, fmt.Errorf("create kubernetes client: %w", err)
 	}
 
 	return store, nil
-}
-
-func (s *KubernetesSecretStore) save(resolverName string, storedData *StoredData) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	logger := log.FromContext(s.ctx)
-
-	dataAccount, err := json.MarshalIndent(storedData.Account, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	patches := []patch{
-		{
-			Op:    "replace",
-			Path:  "/data/account",
-			Value: dataAccount,
-		},
-	}
-
-	for _, cert := range storedData.Certificates {
-		if cert.Domain.Main == "" {
-			logger.Warn("not saving a certificate without a main domain name")
-			continue
-		}
-
-		data, err := json.Marshal(cert)
-		if err != nil {
-			return fmt.Errorf("failed to marshale account: %w", err)
-		}
-
-		patches = append(patches, patch{
-			Op:    "replace",
-			Path:  "/data/" + cert.Domain.Main,
-			Value: data,
-		})
-	}
-
-	payload, err := json.MarshalIndent(patches, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	status := &k8serrors.StatusError{}
-	_, err = s.client.CoreV1().Secrets(s.namespace).Patch(s.ctx, s.secretName, types.JSONPatchType, payload, metav1.PatchOptions{FieldManager: FieldManager})
-	if err != nil && errors.As(err, &status) && status.Status().Code == 404 {
-		logger.Debugf("got error %+v when writing ACME Secret, writing...", err)
-		secret := &v1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: s.secretName,
-				Labels: map[string]string{
-					LabelACMEStorage: "true",
-					LabelResolver:    resolverName,
-				},
-			},
-			Data: map[string][]byte{
-				"account": payload,
-			},
-		}
-		_, err = s.client.CoreV1().Secrets(s.namespace).Create(s.ctx, secret, metav1.CreateOptions{FieldManager: FieldManager})
-	}
-	if err != nil {
-		return err
-	}
-
-	s.storedData[resolverName] = storedData
-
-	return nil
-}
-
-func (s *KubernetesSecretStore) get(resolverName string) (*StoredData, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	if s.storedData == nil {
-		s.storedData = make(map[string]*StoredData)
-		secret, err := s.client.CoreV1().Secrets(s.namespace).Get(s.ctx, s.secretName, metav1.GetOptions{})
-		status := &k8serrors.StatusError{}
-		if err != nil {
-			if errors.As(err, &status) && status.Status().Code == 404 {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("failed to fetch secret %q: %w", s.secretName, err)
-		}
-
-		if err := json.Unmarshal(secret.Data["account"], s.storedData[resolverName].Account); err != nil {
-			return nil, err
-		}
-
-		for domain, data := range secret.Data {
-			if domain == "account" {
-				continue
-			}
-
-			var certAndStore CertAndStore
-			if err = json.Unmarshal(data, &certAndStore); err != nil {
-				return nil, err
-			}
-
-			if domain != certAndStore.Domain.Main {
-				log.FromContext(s.ctx).Warnf("mismatch in cert domain and secret keyname: %q != %q", domain, certAndStore.Domain.Main)
-			}
-
-			s.storedData[resolverName].Certificates = append(s.storedData[resolverName].Certificates, &certAndStore)
-		}
-	}
-
-	if s.storedData[resolverName] == nil {
-		s.storedData[resolverName] = &StoredData{}
-	}
-
-	return s.storedData[resolverName], nil
 }
 
 // GetAccount returns the account information for the given resolverName, this
@@ -238,6 +111,115 @@ func (s *KubernetesSecretStore) SaveCertificates(resolverName string, certs []*C
 	storedData.Certificates = certs
 
 	return s.save(resolverName, storedData)
+}
+
+func (s *KubernetesSecretStore) save(resolverName string, storedData *StoredData) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	logger := log.WithoutContext()
+
+	dataAccount, err := json.MarshalIndent(storedData.Account, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	patches := []patch{
+		{
+			Op:    "replace",
+			Path:  "/data/account",
+			Value: dataAccount,
+		},
+	}
+
+	for _, cert := range storedData.Certificates {
+		if cert.Domain.Main == "" {
+			logger.Warn("not saving a certificate without a main domain name")
+			continue
+		}
+
+		data, err := json.Marshal(cert)
+		if err != nil {
+			return fmt.Errorf("failed to marshale account: %w", err)
+		}
+
+		patches = append(patches, patch{
+			Op:    "replace",
+			Path:  "/data/" + cert.Domain.Main,
+			Value: data,
+		})
+	}
+
+	payload, err := json.MarshalIndent(patches, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	_, err = s.client.CoreV1().Secrets(s.namespace).Patch(context.Background(), s.secretName, types.JSONPatchType, payload, metav1.PatchOptions{FieldManager: FieldManager})
+	if k8serrors.IsNotFound(err) {
+		logger.Debugf("got error %+v when writing ACME KubernetesSecret, writing...", err)
+		secret := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: s.secretName,
+				Labels: map[string]string{
+					LabelACMEStorage: "true",
+					LabelResolver:    resolverName,
+				},
+			},
+			Data: map[string][]byte{
+				"account": payload,
+			},
+		}
+		_, err = s.client.CoreV1().Secrets(s.namespace).Create(context.Background(), secret, metav1.CreateOptions{FieldManager: FieldManager})
+	}
+	if err != nil {
+		return err
+	}
+
+	s.storedData[resolverName] = storedData
+
+	return nil
+}
+
+func (s *KubernetesSecretStore) get(resolverName string) (*StoredData, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if s.storedData == nil {
+		s.storedData = make(map[string]*StoredData)
+
+		secret, err := s.client.CoreV1().Secrets(s.namespace).Get(context.Background(), s.secretName, metav1.GetOptions{})
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("fetch secret %q: %w", s.secretName, err)
+		}
+
+		if err := json.Unmarshal(secret.Data["data"], &s.storedData); err != nil {
+			return nil, fmt.Errorf("unmarshal: %w", err)
+		}
+
+		// Delete all certificates with no value
+		var certificates []*CertAndStore
+		for _, storedData := range s.storedData {
+			for _, certificate := range storedData.Certificates {
+				if len(certificate.Certificate.Certificate) == 0 || len(certificate.Key) == 0 {
+					log.WithoutContext().Debugf("Deleting empty certificate %v for %v", certificate, certificate.Domain.ToStrArray())
+					continue
+				}
+				certificates = append(certificates, certificate)
+			}
+			if len(certificates) < len(storedData.Certificates) {
+				storedData.Certificates = certificates
+			}
+		}
+	}
+
+	if s.storedData[resolverName] == nil {
+		s.storedData[resolverName] = &StoredData{}
+	}
+	return s.storedData[resolverName], nil
 }
 
 type patch struct {
