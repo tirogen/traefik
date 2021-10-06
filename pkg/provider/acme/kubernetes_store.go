@@ -15,9 +15,6 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// FieldManager is the name of this process writing to k8s.
-const FieldManager = "traefik"
-
 // LabelResolver is the key of the Kubernetes label where we store the secret's
 // resolver name.
 const LabelResolver = "traefik.ingress.kubernetes.io/resolver"
@@ -27,8 +24,7 @@ const LabelResolver = "traefik.ingress.kubernetes.io/resolver"
 const LabelACMEStorage = "traefik.ingress.kubernetes.io/acme-storage"
 
 // KubernetesSecretStore stores ACME account and certificates Kubernetes secrets.
-// Each resolver gets it's own secrets and each domain is stored as a separate
-// value in the secret.
+// Each domain is stored as a separate value in the secret.
 // All secrets managed by this store well get the label
 // `traefik.ingress.kubernetes.io/acme-storage=true`.
 type KubernetesSecretStore struct {
@@ -61,9 +57,7 @@ func NewKubernetesSecretStore(storage *K8sSecretStorage) (*KubernetesSecretStore
 	return store, nil
 }
 
-// GetAccount returns the account information for the given resolverName, this
-// either from storedData (which is maintained by the watcher and Save* operations)
-// or it will fetch the resource fresh.
+// GetAccount returns ACME Account.
 func (s *KubernetesSecretStore) GetAccount(resolverName string) (*Account, error) {
 	secret, err := s.get(resolverName)
 	if secret == nil || err != nil {
@@ -73,9 +67,7 @@ func (s *KubernetesSecretStore) GetAccount(resolverName string) (*Account, error
 	return secret.Account, nil
 }
 
-// SaveAccount will patch the kubernetes secret resource for the given
-// resolverName with the given account data. When the secret did not exist it is
-// created with the correct labels set.
+// SaveAccount stores ACME Account.
 func (s *KubernetesSecretStore) SaveAccount(resolverName string, account *Account) error {
 	storedData, err := s.get(resolverName)
 	if err != nil {
@@ -87,9 +79,7 @@ func (s *KubernetesSecretStore) SaveAccount(resolverName string, account *Accoun
 	return s.save(resolverName, storedData)
 }
 
-// GetCertificates returns all certificates for the given resolverName, this
-// either from storedData (which is maintained by the watcher and Save* operations)
-// or it will fetch the resource fresh.
+// GetCertificates returns ACME Certificates list.
 func (s *KubernetesSecretStore) GetCertificates(resolverName string) ([]*CertAndStore, error) {
 	secret, err := s.get(resolverName)
 	if secret == nil || err != nil {
@@ -99,9 +89,7 @@ func (s *KubernetesSecretStore) GetCertificates(resolverName string) ([]*CertAnd
 	return secret.Certificates, nil
 }
 
-// SaveCertificates will patch the kubernetes secret resource for the given
-// resolverName with the given certificates. When the secret did not exist it is
-// created with the correct labels set.
+// SaveCertificates stores ACME Certificates list.
 func (s *KubernetesSecretStore) SaveCertificates(resolverName string, certs []*CertAndStore) error {
 	storedData, err := s.get(resolverName)
 	if err != nil {
@@ -117,45 +105,21 @@ func (s *KubernetesSecretStore) save(resolverName string, storedData *StoredData
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
+	s.storedData[resolverName] = storedData
+
 	logger := log.WithoutContext()
 
-	dataAccount, err := json.MarshalIndent(storedData.Account, "", "  ")
+	data, err := json.Marshal(storedData)
 	if err != nil {
 		return err
 	}
 
-	patches := []patch{
-		{
-			Op:    "replace",
-			Path:  "/data/account",
-			Value: dataAccount,
-		},
-	}
+	payload := []byte(`[{"op": "replace", "path": "/data/` + resolverName + `", "value": ` + fmt.Sprintf("%q", data) + `}]`)
 
-	for _, cert := range storedData.Certificates {
-		if cert.Domain.Main == "" {
-			logger.Warn("not saving a certificate without a main domain name")
-			continue
-		}
+	fmt.Println(string(payload))
 
-		data, err := json.Marshal(cert)
-		if err != nil {
-			return fmt.Errorf("failed to marshale account: %w", err)
-		}
-
-		patches = append(patches, patch{
-			Op:    "replace",
-			Path:  "/data/" + cert.Domain.Main,
-			Value: data,
-		})
-	}
-
-	payload, err := json.MarshalIndent(patches, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	_, err = s.client.CoreV1().Secrets(s.namespace).Patch(context.Background(), s.secretName, types.JSONPatchType, payload, metav1.PatchOptions{FieldManager: FieldManager})
+	temp, err := s.client.CoreV1().Secrets(s.namespace).Patch(context.Background(), s.secretName, types.JSONPatchType, payload, metav1.PatchOptions{})
+	fmt.Println(temp, err)
 	if k8serrors.IsNotFound(err) {
 		logger.Debugf("got error %+v when writing ACME KubernetesSecret, writing...", err)
 		secret := &v1.Secret{
@@ -167,16 +131,14 @@ func (s *KubernetesSecretStore) save(resolverName string, storedData *StoredData
 				},
 			},
 			Data: map[string][]byte{
-				"account": payload,
+				resolverName: payload,
 			},
 		}
-		_, err = s.client.CoreV1().Secrets(s.namespace).Create(context.Background(), secret, metav1.CreateOptions{FieldManager: FieldManager})
+		_, err = s.client.CoreV1().Secrets(s.namespace).Create(context.Background(), secret, metav1.CreateOptions{})
 	}
 	if err != nil {
 		return err
 	}
-
-	s.storedData[resolverName] = storedData
 
 	return nil
 }
@@ -196,7 +158,7 @@ func (s *KubernetesSecretStore) get(resolverName string) (*StoredData, error) {
 			return nil, fmt.Errorf("fetch secret %q: %w", s.secretName, err)
 		}
 
-		if err := json.Unmarshal(secret.Data["data"], &s.storedData); err != nil {
+		if err := json.Unmarshal(secret.Data[resolverName], s.storedData[resolverName]); err != nil {
 			return nil, fmt.Errorf("unmarshal: %w", err)
 		}
 
@@ -220,10 +182,4 @@ func (s *KubernetesSecretStore) get(resolverName string) (*StoredData, error) {
 		s.storedData[resolverName] = &StoredData{}
 	}
 	return s.storedData[resolverName], nil
-}
-
-type patch struct {
-	Op    string `json:"op"`
-	Path  string `json:"path"`
-	Value []byte `json:"value"`
 }

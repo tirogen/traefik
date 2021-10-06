@@ -1,7 +1,6 @@
 package acme
 
 import (
-	"context"
 	"reflect"
 	"sync"
 	"testing"
@@ -25,16 +24,16 @@ func TestKubernetesStoreAccounts(t *testing.T) {
 			desc: "With account",
 			account: Account{
 				Email:      "john@example.org",
-				PrivateKey: []byte("0123456789"),
 				KeyType:    certcrypto.RSA2048,
+				PrivateKey: []byte("0123456789"),
 			},
 		},
 		{
 			desc: "With account edition",
 			account: Account{
 				Email:      "john@example.org",
-				PrivateKey: []byte("0123456789"),
 				KeyType:    certcrypto.RSA2048,
+				PrivateKey: []byte("0123456789"),
 			},
 			accountEdit: &Account{
 				Email: "not-john@example.org",
@@ -46,11 +45,8 @@ func TestKubernetesStoreAccounts(t *testing.T) {
 		test := test
 
 		t.Run(test.desc, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			t.Cleanup(cancel)
 			store := &KubernetesSecretStore{
-				ctx:        ctx,
-				lock:       &sync.Mutex{},
+				lock:       sync.Mutex{},
 				storedData: make(map[string]*StoredData),
 				client:     fake.NewSimpleClientset(),
 				secretName: "test-secret",
@@ -99,8 +95,8 @@ func TestKubernetesStoreCertificates(t *testing.T) {
 			certs: []*CertAndStore{
 				{
 					Certificate: Certificate{
-						Domain:      types.Domain{Main: "example.org"},
 						Certificate: []byte("0123456789"),
+						Domain:      types.Domain{Main: "example.org"},
 						Key:         []byte("0123456789"),
 					},
 					Store: "store01",
@@ -112,16 +108,16 @@ func TestKubernetesStoreCertificates(t *testing.T) {
 			certs: []*CertAndStore{
 				{
 					Certificate: Certificate{
-						Domain:      types.Domain{Main: "example.org"},
 						Certificate: []byte("0123456789"),
+						Domain:      types.Domain{Main: "example.org"},
 						Key:         []byte("0123456789"),
 					},
 					Store: "store01",
 				},
 				{
 					Certificate: Certificate{
-						Domain:      types.Domain{Main: "sub.example.org"},
 						Certificate: []byte("9876543210"),
+						Domain:      types.Domain{Main: "sub.example.org"},
 						Key:         []byte("9876543210"),
 					},
 					Store: "store02",
@@ -134,11 +130,8 @@ func TestKubernetesStoreCertificates(t *testing.T) {
 		test := test
 
 		t.Run(test.desc, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			t.Cleanup(cancel)
 			store := &KubernetesSecretStore{
-				ctx:        ctx,
-				lock:       &sync.Mutex{},
+				lock:       sync.Mutex{},
 				storedData: make(map[string]*StoredData),
 				client:     fake.NewSimpleClientset(),
 				secretName: "test-secret",
