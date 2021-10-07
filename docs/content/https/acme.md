@@ -533,6 +533,9 @@ docker run -v "/my/host/acme:/etc/traefik/acme" traefik
 !!! warning
     For concurrency reasons, this file cannot be shared across multiple instances of Traefik.
 
+!!! warning
+    if `kubernetesSecret` is set, the `storage` configuration will be ignored
+
 ### `preferredChain`
 
 _Optional, Default=""_
@@ -596,12 +599,9 @@ certificatesResolvers:
 
 Traefik can also store your ACME certificates to a Kubernetes secret resource.
 
-```toml tab="File (TOML)"
-[certificatesResolvers.myresolver.acme]
-  # ...
-  storage = "kubernetes:///mynamespace"
-  # ...
-```
+To store your ACME certificates in a kubernetes cluster
+
+[//]: # (TODO: namespace)
 
 ```yaml tab="File (YAML)"
 certificatesResolvers:
@@ -610,6 +610,13 @@ certificatesResolvers:
       # ...
       storage: "kubernetes:///mynamespace"
       # ...
+```
+
+```toml tab="File (TOML)"
+[certificatesResolvers.myresolver.acme]
+  # ...
+  storage = "kubernetes:///mynamespace"
+  # ...
 ```
 
 ```bash tab="CLI"

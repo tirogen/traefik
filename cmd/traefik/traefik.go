@@ -386,22 +386,27 @@ func initACMEProvider(c *static.Configuration, providerAggregator *aggregator.Pr
 			continue
 		}
 
-		if stores[resolver.ACME.Storage] == nil {
-				if strings.HasPrefix(resolver.ACME.Storage, "kubernetes://") {
-					var err error
-					stores[resolver.ACME.Storage], err = acme.KubernetesStoreFromURI(resolver.ACME.Storage)
-					if err != nil {
-						log.WithoutContext().Errorf("The ACME resolver %q is skipped from the resolvers list because: %v", name, err)
-						continue
-					}
-				} else {
-					stores[resolver.ACME.Storage] = acme.NewLocalStore(resolver.ACME.Storage)
+		var key string
+		if resolver.ACME.KubernetesSecret != nil {
+			key = resolver.ACME.KubernetesSecret.SecretName + resolver.ACME.KubernetesSecret.Namespace
+			if _, exists := stores[key]; !exists {
+				store, err := acme.NewKubernetesSecretStore(resolver.ACME.KubernetesSecret)
+				if err != nil {
+					log.WithoutContext().Errorf("The ACME resolver %q is skipped from the resolvers list because: %v", name, err)
+					continue
 				}
+				stores[key] = store
 			}
+		} else {
+			key = resolver.ACME.Storage
+			if _, exists := stores[key]; !exists {
+				stores[key] = acme.NewLocalStore(resolver.ACME.Storage)
+			}
+		}
 
 		p := &acme.Provider{
 			Configuration:         resolver.ACME,
-			Store:                 stores[resolver.ACME.Storage],
+			Store:                 stores[key],
 			ResolverName:          name,
 			HTTPChallengeProvider: httpChallengeProvider,
 			TLSChallengeProvider:  tlsChallengeProvider,
