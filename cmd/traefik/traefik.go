@@ -365,8 +365,8 @@ func initACMEProvider(c *static.Configuration, providerAggregator *aggregator.Pr
 
 		p := &acme.Provider{
 			Configuration:         resolver.ACME,
-			ResolverName:          name,
 			Store:                 stores[key],
+			ResolverName:          name,
 			HTTPChallengeProvider: httpChallengeProvider,
 			TLSChallengeProvider:  tlsChallengeProvider,
 		}
