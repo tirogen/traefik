@@ -47,8 +47,8 @@ func TestKubernetesStoreAccounts(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			store := &KubernetesSecretStore{
 				lock:       sync.Mutex{},
-				storedData: make(map[string]*StoredData),
 				client:     fake.NewSimpleClientset(),
+				storedData: make(map[string]*StoredData),
 				secretName: "test-secret",
 			}
 
@@ -132,8 +132,8 @@ func TestKubernetesStoreCertificates(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			store := &KubernetesSecretStore{
 				lock:       sync.Mutex{},
-				storedData: make(map[string]*StoredData),
 				client:     fake.NewSimpleClientset(),
+				storedData: make(map[string]*StoredData),
 				secretName: "test-secret",
 			}
 

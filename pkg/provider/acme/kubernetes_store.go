@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/traefik/traefik/v2/pkg/log"
@@ -15,17 +18,15 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// LabelResolver is the key of the Kubernetes label where we store the secret's
-// resolver name.
+// LabelResolver is the key of the Kubernetes label where we store the secret's resolver name.
 const LabelResolver = "traefik.ingress.kubernetes.io/resolver"
 
-// LabelACMEStorage is the key of the Kubernetes label that marks a sercet as
-// stored.
+// LabelACMEStorage is the key of the Kubernetes label that marks a secret as stored.
 const LabelACMEStorage = "traefik.ingress.kubernetes.io/acme-storage"
 
 // KubernetesSecretStore stores ACME account and certificates Kubernetes secrets.
 // Each domain is stored as a separate value in the secret.
-// All secrets managed by this store well get the label
+// All secrets managed by this store will get the label
 // `traefik.ingress.kubernetes.io/acme-storage=true`.
 type KubernetesSecretStore struct {
 	namespace  string
@@ -38,10 +39,15 @@ type KubernetesSecretStore struct {
 
 // NewKubernetesSecretStore creates a new KubernetesSecretStore instance.
 func NewKubernetesSecretStore(storage *K8sSecretStorage) (*KubernetesSecretStore, error) {
-	// FIXME change namespace by default
+	if storage.Namespace == "" {
+		// FIXME "default" as value by default ?
+		storage.Namespace = getNamespace()
+	}
+
 	store := &KubernetesSecretStore{
 		namespace:  storage.Namespace,
 		secretName: storage.SecretName,
+		storedData: make(map[string]*StoredData),
 	}
 
 	config, err := rest.InClusterConfig()
@@ -74,6 +80,10 @@ func (s *KubernetesSecretStore) SaveAccount(resolverName string, account *Accoun
 		return err
 	}
 
+	if storedData == nil {
+		storedData = &StoredData{}
+	}
+
 	storedData.Account = account
 
 	return s.save(resolverName, storedData)
@@ -96,6 +106,10 @@ func (s *KubernetesSecretStore) SaveCertificates(resolverName string, certs []*C
 		return err
 	}
 
+	if storedData == nil {
+		storedData = &StoredData{}
+	}
+
 	storedData.Certificates = certs
 
 	return s.save(resolverName, storedData)
@@ -107,28 +121,34 @@ func (s *KubernetesSecretStore) save(resolverName string, storedData *StoredData
 
 	s.storedData[resolverName] = storedData
 
-	logger := log.WithoutContext()
-
-	data, err := json.Marshal(storedData)
+	dataAccount, err := json.Marshal(storedData)
 	if err != nil {
 		return err
 	}
 
-	payload := []byte(`[{"op": "replace", "path": "/data/` + resolverName + `", "value": ` + fmt.Sprintf("%q", data) + `}]`)
+	patches := []struct {
+		Op    string `json:"op"`
+		Path  string `json:"path"`
+		Value []byte `json:"value"`
+	}{
+		{
+			Op:    "replace",
+			Path:  "/data/" + resolverName,
+			Value: dataAccount,
+		},
+	}
 
-	fmt.Println(string(payload))
+	payload, err := json.Marshal(patches)
+	if err != nil {
+		return err
+	}
 
-	temp, err := s.client.CoreV1().Secrets(s.namespace).Patch(context.Background(), s.secretName, types.JSONPatchType, payload, metav1.PatchOptions{})
-	fmt.Println(temp, err)
+	_, err = s.client.CoreV1().Secrets(s.namespace).Patch(context.Background(), s.secretName, types.JSONPatchType, payload, metav1.PatchOptions{})
 	if k8serrors.IsNotFound(err) {
-		logger.Debugf("got error %+v when writing ACME KubernetesSecret, writing...", err)
+		log.WithoutContext().Debugf("got error %+v when writing ACME KubernetesSecret, writing...", err)
 		secret := &v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: s.secretName,
-				Labels: map[string]string{
-					LabelACMEStorage: "true",
-					LabelResolver:    resolverName,
-				},
 			},
 			Data: map[string][]byte{
 				resolverName: payload,
@@ -147,39 +167,60 @@ func (s *KubernetesSecretStore) get(resolverName string) (*StoredData, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	if s.storedData == nil {
-		s.storedData = make(map[string]*StoredData)
+	if data, exists := s.storedData[resolverName]; exists {
+		return data, nil
+	}
 
-		secret, err := s.client.CoreV1().Secrets(s.namespace).Get(context.Background(), s.secretName, metav1.GetOptions{})
-		if k8serrors.IsNotFound(err) {
-			return nil, nil
-		}
-		if err != nil {
-			return nil, fmt.Errorf("fetch secret %q: %w", s.secretName, err)
-		}
+	secret, err := s.client.CoreV1().Secrets(s.namespace).Get(context.Background(), s.secretName, metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("fetch secret %q: %w", s.secretName, err)
+	}
 
-		if err := json.Unmarshal(secret.Data[resolverName], s.storedData[resolverName]); err != nil {
-			return nil, fmt.Errorf("unmarshal: %w", err)
-		}
+	rawData, exists := secret.Data[resolverName]
+	if !exists {
+		return nil, nil
+	}
 
-		// Delete all certificates with no value
-		var certificates []*CertAndStore
-		for _, storedData := range s.storedData {
-			for _, certificate := range storedData.Certificates {
-				if len(certificate.Certificate.Certificate) == 0 || len(certificate.Key) == 0 {
-					log.WithoutContext().Debugf("Deleting empty certificate %v for %v", certificate, certificate.Domain.ToStrArray())
-					continue
-				}
-				certificates = append(certificates, certificate)
-			}
-			if len(certificates) < len(storedData.Certificates) {
-				storedData.Certificates = certificates
-			}
+	var data StoredData
+	if err := json.Unmarshal(rawData, &data); err != nil {
+		return nil, fmt.Errorf("unmarshal: %w", err)
+	}
+
+	// Delete all certificates with no value
+	var certificates []*CertAndStore
+	for _, certificate := range data.Certificates {
+		if len(certificate.Certificate.Certificate) == 0 || len(certificate.Key) == 0 {
+			log.WithoutContext().Debugf("Deleting empty certificate %v for %v", certificate, certificate.Domain.ToStrArray())
+			continue
+		}
+		certificates = append(certificates, certificate)
+	}
+	if len(certificates) < len(data.Certificates) {
+		data.Certificates = certificates
+	}
+
+	s.storedData[resolverName] = &data
+	return &data, nil
+}
+
+// getNamespace returns the namespace in inCluster context
+// see https://github.com/kubernetes/kubernetes/pull/63707
+func getNamespace() string {
+	// This way assumes you've set the POD_NAMESPACE environment variable using the downward API.
+	// This check has to be done first for backwards compatibility with the way InClusterConfig was originally set up
+	if ns, ok := os.LookupEnv("POD_NAMESPACE"); ok {
+		return ns
+	}
+
+	// Fall back to the namespace associated with the service account token, if available
+	if data, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
+			return ns
 		}
 	}
 
-	if s.storedData[resolverName] == nil {
-		s.storedData[resolverName] = &StoredData{}
-	}
-	return s.storedData[resolverName], nil
+	return metav1.NamespaceDefault
 }
