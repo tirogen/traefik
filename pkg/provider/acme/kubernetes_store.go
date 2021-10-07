@@ -148,10 +148,11 @@ func (s *KubernetesSecretStore) save(resolverName string, storedData *StoredData
 		log.WithoutContext().Debugf("got error %+v when writing ACME KubernetesSecret, writing...", err)
 		secret := &v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: s.secretName,
+				Name:      s.secretName,
+				Namespace: s.namespace,
 			},
 			Data: map[string][]byte{
-				resolverName: payload,
+				resolverName: dataAccount,
 			},
 		}
 		_, err = s.client.CoreV1().Secrets(s.namespace).Create(context.Background(), secret, metav1.CreateOptions{})
