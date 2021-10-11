@@ -80,9 +80,6 @@ var (
 // SetDefaults sets the default values.
 func (p *Provider) SetDefaults() {
 	p.Clusters = []string{"default"}
-	p.Services = []string{}
-	p.AutoDiscoverClusters = false
-	p.RequireHealthyTask = false
 	p.ExposedByDefault = true
 	p.RefreshSeconds = 15
 	p.DefaultRule = DefaultTemplateRule
@@ -253,32 +250,7 @@ func (p *Provider) listInstances(ctx context.Context, client *awsClient) ([]ecsI
 		cluster := c
 		var input *ecs.ListTasksInput
 		tasks := make(map[string]*ecs.Task)
-		if len(services) > 0 {
-			for _, s := range services {
-				service := s
-				input = &ecs.ListTasksInput{
-					Cluster:     &cluster,
-					ServiceName: &service,
-				}
-				taskArray, err := p.listTasks(ctx, client, input)
-				if err != nil {
-					var snfe *ecs.ServiceNotFoundException
-					var cnfe *ecs.ClusterNotFoundException
-					// Don't want to stop operations if a cluster or service was misstyped or went down so we just log it and move on
-					switch {
-					case errors.As(err, &snfe):
-						logger.Errorf("Service not found: %s", service)
-					case errors.As(err, &cnfe):
-						logger.Errorf("Cluster not found: %s", cluster)
-					default:
-						return nil, err
-					}
-				}
-				for _, t := range taskArray {
-					tasks[aws.StringValue(t.TaskArn)] = t
-				}
-			}
-		} else {
+		if len(services) == 0 {
 			input = &ecs.ListTasksInput{
 				Cluster: &cluster,
 			}
@@ -287,6 +259,31 @@ func (p *Provider) listInstances(ctx context.Context, client *awsClient) ([]ecsI
 				var cnfe *ecs.ClusterNotFoundException
 				// Don't want to stop operations if a cluster or service was misstyped or went down so we just log it and move on
 				switch {
+				case errors.As(err, &cnfe):
+					logger.Errorf("Cluster not found: %s", cluster)
+				default:
+					return nil, err
+				}
+			}
+			for _, t := range taskArray {
+				tasks[aws.StringValue(t.TaskArn)] = t
+			}
+		}
+
+		for _, s := range services {
+			service := s
+			input = &ecs.ListTasksInput{
+				Cluster:     &cluster,
+				ServiceName: &service,
+			}
+			taskArray, err := p.listTasks(ctx, client, input)
+			if err != nil {
+				var snfe *ecs.ServiceNotFoundException
+				var cnfe *ecs.ClusterNotFoundException
+				// Don't want to stop operations if a cluster or service was misstyped or went down so we just log it and move on
+				switch {
+				case errors.As(err, &snfe):
+					logger.Errorf("Service not found: %s", service)
 				case errors.As(err, &cnfe):
 					logger.Errorf("Cluster not found: %s", cluster)
 				default:
@@ -404,32 +401,35 @@ func (p *Provider) listTasks(ctx context.Context, client *awsClient, input *ecs.
 	logger := log.FromContext(ctx)
 	var tasks []*ecs.Task
 	err := client.ecs.ListTasksPagesWithContext(ctx, input, func(page *ecs.ListTasksOutput, lastPage bool) bool {
-		if len(page.TaskArns) > 0 {
-			resp, err := client.ecs.DescribeTasksWithContext(ctx, &ecs.DescribeTasksInput{
-				Tasks:   page.TaskArns,
-				Cluster: input.Cluster,
-			})
-			if err != nil {
-				logger.Errorf("Unable to describe tasks for %v", page.TaskArns)
-			} else {
-				for _, t := range resp.Tasks {
-					if aws.StringValue(t.LastStatus) == ecs.DesiredStatusRunning {
-						if p.RequireHealthyTask {
-							if aws.StringValue(t.HealthStatus) != ecs.HealthStatusHealthy {
-								logger.Debugf("Task %s not HealthStatus Healthy - skipping", *t.TaskArn)
-								continue
-							}
-						}
-						tasks = append(tasks, t)
-					}
+		if len(page.TaskArns) == 0 {
+			return !lastPage
+		}
+
+		resp, err := client.ecs.DescribeTasksWithContext(ctx, &ecs.DescribeTasksInput{
+			Tasks:   page.TaskArns,
+			Cluster: input.Cluster,
+		})
+		if err != nil {
+			logger.Errorf("Unable to describe tasks for %v", page.TaskArns)
+		}
+
+		for _, t := range resp.Tasks {
+			if aws.StringValue(t.LastStatus) == ecs.DesiredStatusRunning {
+				if p.RequireHealthyTask && aws.StringValue(t.HealthStatus) != ecs.HealthStatusHealthy {
+					logger.Debugf("Task %s skipped, HealthStatus not Healthy", *t.TaskArn)
+
+					continue
 				}
+				tasks = append(tasks, t)
 			}
 		}
+
 		return !lastPage
 	})
 	if err != nil {
 		return nil, err
 	}
+
 	return tasks, nil
 }
 
