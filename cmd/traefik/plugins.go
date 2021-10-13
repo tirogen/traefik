@@ -10,41 +10,18 @@ import (
 const outputDir = "./plugins-storage/"
 
 func createPluginBuilder(staticConfiguration *static.Configuration) (*plugins.Builder, error) {
-	client, plgs, localPlgs, err := initPlugins(staticConfiguration)
+	localPlgs, err := initPlugins(staticConfiguration)
 	if err != nil {
 		return nil, err
 	}
 
-	return plugins.NewBuilder(client, plgs, localPlgs)
+	return plugins.NewBuilder(localPlgs)
 }
 
-func initPlugins(staticCfg *static.Configuration) (*plugins.Client, map[string]plugins.Descriptor, map[string]plugins.LocalDescriptor, error) {
+func initPlugins(staticCfg *static.Configuration) (map[string]plugins.LocalDescriptor, error) {
 	err := checkUniquePluginNames(staticCfg.Experimental)
 	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	var client *plugins.Client
-	plgs := map[string]plugins.Descriptor{}
-
-	if isPilotEnabled(staticCfg) && hasPlugins(staticCfg) {
-		opts := plugins.ClientOptions{
-			Output: outputDir,
-			Token:  staticCfg.Pilot.Token,
-		}
-
-		var err error
-		client, err = plugins.NewClient(opts)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-
-		err = plugins.SetupRemotePlugins(client, staticCfg.Experimental.Plugins)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-
-		plgs = staticCfg.Experimental.Plugins
+		return nil, err
 	}
 
 	localPlgs := map[string]plugins.LocalDescriptor{}
@@ -52,13 +29,13 @@ func initPlugins(staticCfg *static.Configuration) (*plugins.Client, map[string]p
 	if hasLocalPlugins(staticCfg) {
 		err := plugins.SetupLocalPlugins(staticCfg.Experimental.LocalPlugins)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 
 		localPlgs = staticCfg.Experimental.LocalPlugins
 	}
 
-	return client, plgs, localPlgs, nil
+	return localPlgs, nil
 }
 
 func checkUniquePluginNames(e *static.Experimental) error {
@@ -73,10 +50,6 @@ func checkUniquePluginNames(e *static.Experimental) error {
 	}
 
 	return nil
-}
-
-func isPilotEnabled(staticCfg *static.Configuration) bool {
-	return staticCfg.Pilot != nil && staticCfg.Pilot.Token != ""
 }
 
 func hasPlugins(staticCfg *static.Configuration) bool {

@@ -22,7 +22,7 @@ type Builder struct {
 }
 
 // NewBuilder creates a new Builder.
-func NewBuilder(client *Client, plugins map[string]Descriptor, localPlugins map[string]LocalDescriptor) (*Builder, error) {
+func NewBuilder(localPlugins map[string]LocalDescriptor) (*Builder, error) {
 	pb := &Builder{
 		middlewareBuilders: map[string]*middlewareBuilder{},
 		providerBuilders:   map[string]providerBuilder{},
