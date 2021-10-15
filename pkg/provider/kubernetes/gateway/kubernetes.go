@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/gateway-api/apis/v1alpha1"
+	"sigs.k8s.io/gateway-api/apis/v1alpha2"
 )
 
 const (
@@ -202,7 +203,7 @@ func (p *Provider) loadConfigurationFromGateway(ctx context.Context, client Clie
 	}
 
 	for _, gatewayClass := range gatewayClasses {
-		if gatewayClass.Spec.Controller == "traefik.io/gateway-controller" {
+		if gatewayClass.Spec.ControllerName == "traefik.io/gateway-controller" {
 			gatewayClassNames[gatewayClass.Name] = struct{}{}
 
 			err := client.UpdateGatewayClassStatus(gatewayClass, metav1.Condition{
@@ -225,7 +226,7 @@ func (p *Provider) loadConfigurationFromGateway(ctx context.Context, client Clie
 		ctxLog := log.With(ctx, log.Str("gateway", gateway.Name), log.Str("namespace", gateway.Namespace))
 		logger := log.FromContext(ctxLog)
 
-		if _, ok := gatewayClassNames[gateway.Spec.GatewayClassName]; !ok {
+		if _, ok := gatewayClassNames[string(gateway.Spec.GatewayClassName)]; !ok {
 			continue
 		}
 
@@ -269,7 +270,7 @@ func (p *Provider) loadConfigurationFromGateway(ctx context.Context, client Clie
 	return conf
 }
 
-func (p *Provider) createGatewayConf(ctx context.Context, client Client, gateway *v1alpha1.Gateway) (*dynamic.Configuration, error) {
+func (p *Provider) createGatewayConf(ctx context.Context, client Client, gateway *v1alpha2.Gateway) (*dynamic.Configuration, error) {
 	conf := &dynamic.Configuration{
 		UDP: &dynamic.UDPConfiguration{
 			Routers:  map[string]*dynamic.UDPRouter{},
@@ -312,26 +313,26 @@ func (p *Provider) createGatewayConf(ctx context.Context, client Client, gateway
 	return conf, nil
 }
 
-func (p *Provider) fillGatewayConf(ctx context.Context, client Client, gateway *v1alpha1.Gateway, conf *dynamic.Configuration, tlsConfigs map[string]*tls.CertAndStores) []v1alpha1.ListenerStatus {
-	listenerStatuses := make([]v1alpha1.ListenerStatus, len(gateway.Spec.Listeners))
+func (p *Provider) fillGatewayConf(ctx context.Context, client Client, gateway *v1alpha2.Gateway, conf *dynamic.Configuration, tlsConfigs map[string]*tls.CertAndStores) []v1alpha2.ListenerStatus {
+	listenerStatuses := make([]v1alpha2.ListenerStatus, len(gateway.Spec.Listeners))
 	logger := log.FromContext(ctx)
-	allocatedPort := map[v1alpha1.PortNumber]v1alpha1.ProtocolType{}
+	allocatedPort := map[v1alpha2.PortNumber]v1alpha2.ProtocolType{}
 
 	for i, listener := range gateway.Spec.Listeners {
-		listenerStatuses[i] = v1alpha1.ListenerStatus{
-			Port:       listener.Port,
+		listenerStatuses[i] = v1alpha2.ListenerStatus{
+			Name:       listener.Name,
 			Conditions: []metav1.Condition{},
 		}
 
 		// Supported Protocol
-		if listener.Protocol != v1alpha1.HTTPProtocolType && listener.Protocol != v1alpha1.HTTPSProtocolType &&
-			listener.Protocol != v1alpha1.TCPProtocolType && listener.Protocol != v1alpha1.TLSProtocolType {
+		if listener.Protocol != v1alpha2.HTTPProtocolType && listener.Protocol != v1alpha2.HTTPSProtocolType &&
+			listener.Protocol != v1alpha2.TCPProtocolType && listener.Protocol != v1alpha2.TLSProtocolType {
 			// update "Detached" status true with "UnsupportedProtocol" reason
 			listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
-				Type:               string(v1alpha1.ListenerConditionDetached),
+				Type:               string(v1alpha2.ListenerConditionDetached),
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
-				Reason:             string(v1alpha1.ListenerReasonUnsupportedProtocol),
+				Reason:             string(v1alpha2.ListenerReasonUnsupportedProtocol),
 				Message:            fmt.Sprintf("Unsupported listener protocol %q", listener.Protocol),
 			})
 
@@ -339,24 +340,26 @@ func (p *Provider) fillGatewayConf(ctx context.Context, client Client, gateway *
 		}
 
 		// Supported Route types
-		if listener.Routes.Kind != routeHTTPKind && listener.Routes.Kind != routeTCPKind && listener.Routes.Kind != routeTLSKind {
-			// update "ResolvedRefs" status true with "InvalidRoutesRef" reason
-			listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
-				Type:               string(v1alpha1.ListenerConditionResolvedRefs),
-				Status:             metav1.ConditionFalse,
-				LastTransitionTime: metav1.Now(),
-				Reason:             string(v1alpha1.ListenerReasonInvalidRoutesRef),
-				Message:            fmt.Sprintf("Unsupported Route Kind %q", listener.Routes.Kind),
-			})
+		for _, kind := range listener.AllowedRoutes.Kinds {
+			if kind.Kind != routeHTTPKind && kind.Kind != routeTCPKind && kind.Kind != routeTLSKind {
+				// update "ResolvedRefs" status true with "InvalidRoutesRef" reason
+				listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
+					Type:               string(v1alpha2.ListenerConditionResolvedRefs),
+					Status:             metav1.ConditionFalse,
+					LastTransitionTime: metav1.Now(),
+					Reason:             string(v1alpha1.ListenerReasonInvalidRoutesRef), // FIXME v1alpha1 -> v1alpha2
+					Message:            fmt.Sprintf("Unsupported Route Kind %q", kind.Kind),
+				})
 
-			continue
+				continue
+			}
 		}
 
 		// Protocol compliant with route type
-		if listener.Protocol == v1alpha1.HTTPProtocolType && listener.Routes.Kind != routeHTTPKind ||
-			listener.Protocol == v1alpha1.HTTPSProtocolType && listener.Routes.Kind != routeHTTPKind ||
-			listener.Protocol == v1alpha1.TCPProtocolType && listener.Routes.Kind != routeTCPKind ||
-			listener.Protocol == v1alpha1.TLSProtocolType && listener.Routes.Kind != routeTLSKind && listener.Routes.Kind != routeTCPKind {
+		if listener.Protocol == v1alpha2.HTTPProtocolType && listener.Routes.Kind != routeHTTPKind ||
+			listener.Protocol == v1alpha2.HTTPSProtocolType && listener.Routes.Kind != routeHTTPKind ||
+			listener.Protocol == v1alpha2.TCPProtocolType && listener.Routes.Kind != routeTCPKind ||
+			listener.Protocol == v1alpha2.TLSProtocolType && listener.Routes.Kind != routeTLSKind && listener.Routes.Kind != routeTCPKind {
 			// update "Detached" status true with "UnsupportedProtocol" reason
 			listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
 				Type:               string(v1alpha1.ListenerConditionDetached),
@@ -397,8 +400,8 @@ func (p *Provider) fillGatewayConf(ctx context.Context, client Client, gateway *
 		}
 
 		// TLS
-		if listener.Protocol == v1alpha1.HTTPSProtocolType || listener.Protocol == v1alpha1.TLSProtocolType {
-			if listener.TLS == nil || (listener.TLS.CertificateRef == nil && listener.TLS.Mode != nil && *listener.TLS.Mode != v1alpha1.TLSModePassthrough) {
+		if listener.Protocol == v1alpha2.HTTPSProtocolType || listener.Protocol == v1alpha2.TLSProtocolType {
+			if listener.TLS == nil || (len(listener.TLS.CertificateRefs) > 0 && listener.TLS.Mode != nil && *listener.TLS.Mode != v1alpha2.TLSModePassthrough) {
 				// update "Detached" status with "UnsupportedProtocol" reason
 				listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
 					Type:               string(v1alpha1.ListenerConditionDetached),
@@ -411,25 +414,25 @@ func (p *Provider) fillGatewayConf(ctx context.Context, client Client, gateway *
 				continue
 			}
 
-			var tlsModeType v1alpha1.TLSModeType
+			var tlsModeType v1alpha2.TLSModeType
 			if listener.TLS.Mode != nil {
 				tlsModeType = *listener.TLS.Mode
 			}
 
-			if tlsModeType == v1alpha1.TLSModePassthrough && listener.TLS.CertificateRef != nil {
+			if tlsModeType == v1alpha2.TLSModePassthrough && len(listener.TLS.CertificateRefs) > 0 {
 				// https://gateway-api.sigs.k8s.io/v1alpha1/guides/tls/
-				logger.Warnf("In case of Passthrough TLS mode, no TLS settings take effect as the TLS session from the client is NOT terminated at the Gateway")
+				logger.Warnf("In the case of Passthrough TLS mode, the TLS session from the client is NOT terminated at the gateway, therefore, no TLS settings is taken into account")
 			}
 
-			isTLSPassthrough := tlsModeType == v1alpha1.TLSModePassthrough
+			isTLSPassthrough := tlsModeType == v1alpha2.TLSModePassthrough
 
 			// Allowed configurations:
 			// Protocol TLS -> Passthrough -> TLSRoute
 			// Protocol TLS -> Terminate -> TCPRoute
 			// Protocol HTTPS -> Terminate -> HTTPRoute
-			if !(listener.Protocol == v1alpha1.TLSProtocolType && isTLSPassthrough && listener.Routes.Kind == routeTLSKind ||
-				listener.Protocol == v1alpha1.TLSProtocolType && !isTLSPassthrough && listener.Routes.Kind == routeTCPKind ||
-				listener.Protocol == v1alpha1.HTTPSProtocolType && !isTLSPassthrough && listener.Routes.Kind == routeHTTPKind) {
+			if !(listener.Protocol == v1alpha2.TLSProtocolType && isTLSPassthrough && listener.Routes.Kind == routeTLSKind ||
+				listener.Protocol == v1alpha2.TLSProtocolType && !isTLSPassthrough && listener.Routes.Kind == routeTCPKind ||
+				listener.Protocol == v1alpha2.HTTPSProtocolType && !isTLSPassthrough && listener.Routes.Kind == routeHTTPKind) {
 				// update "ConditionDetached" status true with "ReasonUnsupportedProtocol" reason
 				listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
 					Type:               string(v1alpha1.ListenerConditionDetached),
@@ -569,15 +572,15 @@ func gatewayHTTPRouteToHTTPConf(ctx context.Context, ep string, listener v1alpha
 				continue
 			}
 
-			if routeRule.ForwardTo == nil {
+			if len(routeRule.BackendRefs) == 0 {
 				continue
 			}
 
 			// Traefik internal service can be used only if there is only one ForwardTo service reference.
-			if len(routeRule.ForwardTo) == 1 && isInternalService(routeRule.ForwardTo[0]) {
-				router.Service = routeRule.ForwardTo[0].BackendRef.Name
+			if len(routeRule.BackendRefs) == 1 && isInternalService(routeRule.BackendRefs[0]) {
+				router.Service = string(routeRule.BackendRefs[0].BackendRef.Name)
 			} else {
-				wrrService, subServices, err := loadServices(client, gateway.Namespace, routeRule.ForwardTo)
+				wrrService, subServices, err := loadServices(client, gateway.Namespace, routeRule.BackendRefs)
 				if err != nil {
 					// update "ResolvedRefs" status true with "DroppedRoutes" reason
 					conditions = append(conditions, metav1.Condition{
@@ -786,7 +789,7 @@ func gatewayTLSRouteToTCPConf(ctx context.Context, ep string, listener v1alpha1.
 				continue
 			}
 
-			wrrService, subServices, err := loadTCPServices(client, gateway.Namespace, routeRule.ForwardTo)
+			wrrService, subServices, err := loadTCPServices(client, gateway.Namespace, routeRule.BackendRefs)
 			if err != nil {
 				// update "ResolvedRefs" status true with "DroppedRoutes" reason
 				conditions = append(conditions, metav1.Condition{
@@ -818,10 +821,10 @@ func gatewayTLSRouteToTCPConf(ctx context.Context, ep string, listener v1alpha1.
 	return conditions
 }
 
-func (p *Provider) makeGatewayStatus(listenerStatuses []v1alpha1.ListenerStatus) (v1alpha1.GatewayStatus, error) {
+func (p *Provider) makeGatewayStatus(listenerStatuses []v1alpha2.ListenerStatus) (v1alpha2.GatewayStatus, error) {
 	// As Status.Addresses are not implemented yet, we initialize an empty array to follow the API expectations.
-	gatewayStatus := v1alpha1.GatewayStatus{
-		Addresses: []v1alpha1.GatewayAddress{},
+	gatewayStatus := v1alpha2.GatewayStatus{
+		Addresses: []v1alpha2.GatewayAddress{},
 	}
 
 	var result error
@@ -829,7 +832,7 @@ func (p *Provider) makeGatewayStatus(listenerStatuses []v1alpha1.ListenerStatus)
 		if len(listener.Conditions) == 0 {
 			// GatewayConditionReady "Ready", GatewayConditionReason "ListenerReady"
 			listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
-				Type:               string(v1alpha1.ListenerConditionReady),
+				Type:               string(v1alpha2.ListenerConditionReady),
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "ListenerReady",
@@ -881,7 +884,7 @@ func (p *Provider) makeGatewayStatus(listenerStatuses []v1alpha1.ListenerStatus)
 	return gatewayStatus, nil
 }
 
-func hostRule(httpRouteSpec v1alpha1.HTTPRouteSpec) (string, error) {
+func hostRule(httpRouteSpec v1alpha2.HTTPRouteSpec) (string, error) {
 	var hostNames []string
 	var hostRegexNames []string
 
@@ -958,7 +961,7 @@ func hostSNIRule(rule v1alpha1.TLSRouteRule) (string, error) {
 	return "HostSNI(" + strings.Join(hostnames, ",") + ")", nil
 }
 
-func extractRule(routeRule v1alpha1.HTTPRouteRule, hostRule string) (string, error) {
+func extractRule(routeRule v1alpha2.HTTPRouteRule, hostRule string) (string, error) {
 	var rule string
 	var matchesRules []string
 
@@ -973,29 +976,32 @@ func extractRule(routeRule v1alpha1.HTTPRouteRule, hostRule string) (string, err
 			val := pointer.StringDeref(match.Path.Value, "")
 
 			switch *match.Path.Type {
-			case v1alpha1.PathMatchExact:
+			case v1alpha2.PathMatchExact:
 				matchRules = append(matchRules, fmt.Sprintf("Path(`%s`)", val))
-			case v1alpha1.PathMatchPrefix:
+			case v1alpha2.PathMatchPathPrefix:
 				matchRules = append(matchRules, fmt.Sprintf("PathPrefix(`%s`)", val))
+			case v1alpha2.PathMatchRegularExpression:
+				matchRules = append(matchRules, fmt.Sprintf("Path(`%s`)", val))
 			default:
 				return "", fmt.Errorf("unsupported path match %s", *match.Path.Type)
 			}
 		}
 
 		// TODO handle other headers types
-		if match.Headers != nil && match.Headers.Type != nil {
-			switch *match.Headers.Type {
-			case v1alpha1.HeaderMatchExact:
+		for _, header := range match.Headers {
+			switch *header.Type {
+			case v1alpha2.HeaderMatchExact:
 				var headerRules []string
 
-				for headerName, headerValue := range match.Headers.Values {
+				for headerName, headerValue := range header.Value {
 					headerRules = append(headerRules, fmt.Sprintf("Headers(`%s`,`%s`)", headerName, headerValue))
 				}
+
 				// to have a consistent order
 				sort.Strings(headerRules)
 				matchRules = append(matchRules, headerRules...)
 			default:
-				return "", fmt.Errorf("unsupported header match type %s", *match.Headers.Type)
+				return "", fmt.Errorf("unsupported header match type %s", *header.Type)
 			}
 		}
 
@@ -1138,7 +1144,7 @@ func getCertificateBlocks(secret *corev1.Secret, namespace, secretName string) (
 }
 
 // loadServices is generating a WRR service, even when there is only one target.
-func loadServices(client Client, namespace string, targets []v1alpha1.HTTPRouteForwardTo) (*dynamic.Service, map[string]*dynamic.Service, error) {
+func loadServices(client Client, namespace string, targets []v1alpha2.HTTPBackendRef) (*dynamic.Service, map[string]*dynamic.Service, error) {
 	services := map[string]*dynamic.Service{}
 
 	wrrSvc := &dynamic.Service{
@@ -1147,23 +1153,19 @@ func loadServices(client Client, namespace string, targets []v1alpha1.HTTPRouteF
 		},
 	}
 
-	for _, forwardTo := range targets {
-		weight := int(pointer.Int32Deref(forwardTo.Weight, 1))
+	for _, backendRef := range targets {
+		weight := int(pointer.Int32Deref(backendRef.Weight, 1))
 
-		if forwardTo.ServiceName == nil && forwardTo.BackendRef != nil {
-			if !(forwardTo.BackendRef.Group == traefikServiceGroupName && forwardTo.BackendRef.Kind == traefikServiceKind) {
+		if len(backendRef.Name) == 0 {
+			if isInternalService(backendRef) {
 				continue
 			}
 
-			if strings.HasSuffix(forwardTo.BackendRef.Name, "@internal") {
-				return nil, nil, fmt.Errorf("traefik internal service %s is not allowed in a WRR loadbalancer", forwardTo.BackendRef.Name)
+			if strings.HasSuffix(string(backendRef.Name), "@internal") {
+				return nil, nil, fmt.Errorf("traefik internal service %s is not allowed in a WRR loadbalancer", backendRef.BackendRef.Name)
 			}
 
-			wrrSvc.Weighted.Services = append(wrrSvc.Weighted.Services, dynamic.WRRService{Name: forwardTo.BackendRef.Name, Weight: &weight})
-			continue
-		}
-
-		if forwardTo.ServiceName == nil {
+			wrrSvc.Weighted.Services = append(wrrSvc.Weighted.Services, dynamic.WRRService{Name: string(backendRef.Name), Weight: &weight})
 			continue
 		}
 
@@ -1173,7 +1175,7 @@ func loadServices(client Client, namespace string, targets []v1alpha1.HTTPRouteF
 			},
 		}
 
-		service, exists, err := client.GetService(namespace, *forwardTo.ServiceName)
+		service, exists, err := client.GetService(namespace, string(backendRef.Name))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1182,7 +1184,7 @@ func loadServices(client Client, namespace string, targets []v1alpha1.HTTPRouteF
 			return nil, nil, errors.New("service not found")
 		}
 
-		if len(service.Spec.Ports) > 1 && forwardTo.Port == nil {
+		if len(service.Spec.Ports) > 1 && backendRef.Port == nil {
 			// If the port is unspecified and the backend is a Service
 			// object consisting of multiple port definitions, the route
 			// must be dropped from the Gateway. The controller should
@@ -1190,7 +1192,7 @@ func loadServices(client Client, namespace string, targets []v1alpha1.HTTPRouteF
 			// "DroppedRoutes" reason. The gateway status for this route
 			// should be updated with a condition that describes the error
 			// more specifically.
-			log.WithoutContext().Errorf("A multiple ports Kubernetes Service cannot be used if unspecified forwardTo.Port")
+			log.WithoutContext().Errorf("A multiple ports Kubernetes Service cannot be used if unspecified backendRef.Port")
 			continue
 		}
 
@@ -1198,7 +1200,7 @@ func loadServices(client Client, namespace string, targets []v1alpha1.HTTPRouteF
 		var match bool
 
 		for _, p := range service.Spec.Ports {
-			if forwardTo.Port == nil || p.Port == int32(*forwardTo.Port) {
+			if backendRef.Port == nil || p.Port == int32(*backendRef.Port) {
 				portSpec = p
 				match = true
 				break
@@ -1209,7 +1211,7 @@ func loadServices(client Client, namespace string, targets []v1alpha1.HTTPRouteF
 			return nil, nil, errors.New("service port not found")
 		}
 
-		endpoints, endpointsExists, endpointsErr := client.GetEndpoints(namespace, pointer.StringDeref(forwardTo.ServiceName, ""))
+		endpoints, endpointsExists, endpointsErr := client.GetEndpoints(namespace, string(backendRef.Name))
 		if endpointsErr != nil {
 			return nil, nil, endpointsErr
 		}
@@ -1260,7 +1262,7 @@ func loadServices(client Client, namespace string, targets []v1alpha1.HTTPRouteF
 }
 
 // loadTCPServices is generating a WRR service, even when there is only one target.
-func loadTCPServices(client Client, namespace string, targets []v1alpha1.RouteForwardTo) (*dynamic.TCPService, map[string]*dynamic.TCPService, error) {
+func loadTCPServices(client Client, namespace string, targets []v1alpha2.HTTPBackendRef) (*dynamic.TCPService, map[string]*dynamic.TCPService, error) {
 	services := map[string]*dynamic.TCPService{}
 
 	wrrSvc := &dynamic.TCPService{
@@ -1416,10 +1418,8 @@ func throttleEvents(ctx context.Context, throttleDuration time.Duration, pool *s
 	return eventsChanBuffered
 }
 
-func isInternalService(forwardTo v1alpha1.HTTPRouteForwardTo) bool {
-	return forwardTo.ServiceName == nil &&
-		forwardTo.BackendRef != nil &&
-		forwardTo.BackendRef.Kind == traefikServiceKind &&
-		forwardTo.BackendRef.Group == traefikServiceGroupName &&
-		strings.HasSuffix(forwardTo.BackendRef.Name, "@internal")
+func isInternalService(backendRef v1alpha2.HTTPBackendRef) bool {
+	return backendRef.Kind != nil && string(*backendRef.Kind) == traefikServiceKind &&
+		backendRef.Group != nil && string(*backendRef.Group) == traefikServiceGroupName &&
+		strings.HasSuffix(string(backendRef.Name), "@internal")
 }
