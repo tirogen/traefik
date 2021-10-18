@@ -784,8 +784,8 @@ func gatewayTLSRouteToTCPConf(ctx context.Context, ep string, listener v1alpha1.
 			}
 
 			// Should not happen due to validation
-			// https://github.com/kubernetes-sigs/gateway-api/blob/af68a622f072811767d246ef5897135d93af0704/apis/v1alpha1/tlsroute_types.go#L79
-			if routeRule.ForwardTo == nil {
+			// https://github.com/kubernetes-sigs/gateway-api/blob/ff9883da4cad8554cd300394f725ab3a27502785/apis/v1alpha2/tlsroute_types.go#L118
+			if len(routeRule.BackendRefs) == 0 {
 				continue
 			}
 
@@ -1262,7 +1262,7 @@ func loadServices(client Client, namespace string, targets []v1alpha2.HTTPBacken
 }
 
 // loadTCPServices is generating a WRR service, even when there is only one target.
-func loadTCPServices(client Client, namespace string, targets []v1alpha2.HTTPBackendRef) (*dynamic.TCPService, map[string]*dynamic.TCPService, error) {
+func loadTCPServices(client Client, namespace string, targets []v1alpha2.BackendRef) (*dynamic.TCPService, map[string]*dynamic.TCPService, error) {
 	services := map[string]*dynamic.TCPService{}
 
 	wrrSvc := &dynamic.TCPService{
@@ -1271,23 +1271,23 @@ func loadTCPServices(client Client, namespace string, targets []v1alpha2.HTTPBac
 		},
 	}
 
-	for _, forwardTo := range targets {
-		weight := int(pointer.Int32Deref(forwardTo.Weight, 1))
+	for _, backendRef := range targets {
+		weight := int(pointer.Int32Deref(backendRef.Weight, 1))
 
-		if forwardTo.ServiceName == nil && forwardTo.BackendRef != nil {
-			if !(forwardTo.BackendRef.Group == traefikServiceGroupName && forwardTo.BackendRef.Kind == traefikServiceKind) {
+		if backendRef.Name == "" && backendRef.Group != nil && backendRef.Kind != nil {
+			if !(string(*backendRef.Group) == traefikServiceGroupName && string(*backendRef.Kind) == traefikServiceKind) {
 				continue
 			}
 
-			if strings.HasSuffix(forwardTo.BackendRef.Name, "@internal") {
-				return nil, nil, fmt.Errorf("traefik internal service %s is not allowed in a TCP service", forwardTo.BackendRef.Name)
+			if strings.HasSuffix(string(backendRef.Name), "@internal") {
+				return nil, nil, fmt.Errorf("traefik internal service %s is not allowed in a TCP service", backendRef.Name)
 			}
 
-			wrrSvc.Weighted.Services = append(wrrSvc.Weighted.Services, dynamic.TCPWRRService{Name: forwardTo.BackendRef.Name, Weight: &weight})
+			wrrSvc.Weighted.Services = append(wrrSvc.Weighted.Services, dynamic.TCPWRRService{Name: string(backendRef.Name), Weight: &weight})
 			continue
 		}
 
-		if forwardTo.ServiceName == nil {
+		if backendRef.Name == "" {
 			continue
 		}
 
@@ -1295,7 +1295,7 @@ func loadTCPServices(client Client, namespace string, targets []v1alpha2.HTTPBac
 			LoadBalancer: &dynamic.TCPServersLoadBalancer{},
 		}
 
-		service, exists, err := client.GetService(namespace, *forwardTo.ServiceName)
+		service, exists, err := client.GetService(namespace, string(backendRef.Name))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1304,7 +1304,7 @@ func loadTCPServices(client Client, namespace string, targets []v1alpha2.HTTPBac
 			return nil, nil, errors.New("service not found")
 		}
 
-		if len(service.Spec.Ports) > 1 && forwardTo.Port == nil {
+		if len(service.Spec.Ports) > 1 && backendRef.Port == nil {
 			// If the port is unspecified and the backend is a Service
 			// object consisting of multiple port definitions, the route
 			// must be dropped from the Gateway. The controller should
@@ -1312,7 +1312,7 @@ func loadTCPServices(client Client, namespace string, targets []v1alpha2.HTTPBac
 			// "DroppedRoutes" reason. The gateway status for this route
 			// should be updated with a condition that describes the error
 			// more specifically.
-			log.WithoutContext().Errorf("A multiple ports Kubernetes Service cannot be used if unspecified forwardTo.Port")
+			log.WithoutContext().Errorf("A multiple ports Kubernetes Service cannot be used if unspecified backendRef.Port")
 			continue
 		}
 
@@ -1320,7 +1320,7 @@ func loadTCPServices(client Client, namespace string, targets []v1alpha2.HTTPBac
 		var match bool
 
 		for _, p := range service.Spec.Ports {
-			if forwardTo.Port == nil || p.Port == int32(*forwardTo.Port) {
+			if backendRef.Port == nil || p.Port == int32(*backendRef.Port) {
 				portSpec = p
 				match = true
 				break
@@ -1331,7 +1331,7 @@ func loadTCPServices(client Client, namespace string, targets []v1alpha2.HTTPBac
 			return nil, nil, errors.New("service port not found")
 		}
 
-		endpoints, endpointsExists, endpointsErr := client.GetEndpoints(namespace, *forwardTo.ServiceName)
+		endpoints, endpointsExists, endpointsErr := client.GetEndpoints(namespace, string(backendRef.Name))
 		if endpointsErr != nil {
 			return nil, nil, endpointsErr
 		}
