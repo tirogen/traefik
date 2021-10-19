@@ -340,44 +340,50 @@ func (p *Provider) fillGatewayConf(ctx context.Context, client Client, gateway *
 		}
 
 		// Supported Route types
-		for _, kind := range listener.AllowedRoutes.Kinds {
-			if kind.Kind != routeHTTPKind && kind.Kind != routeTCPKind && kind.Kind != routeTLSKind {
+		var hasInvalidRouteKind bool
+		for _, groupKind := range listener.AllowedRoutes.Kinds {
+			if groupKind.Kind != routeHTTPKind && groupKind.Kind != routeTCPKind && groupKind.Kind != routeTLSKind {
 				// update "ResolvedRefs" status true with "InvalidRoutesRef" reason
 				listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
 					Type:               string(v1alpha2.ListenerConditionResolvedRefs),
 					Status:             metav1.ConditionFalse,
 					LastTransitionTime: metav1.Now(),
-					Reason:             string(v1alpha1.ListenerReasonInvalidRoutesRef), // FIXME v1alpha1 -> v1alpha2
-					Message:            fmt.Sprintf("Unsupported Route Kind %q", kind.Kind),
+					Reason:             string(v1alpha2.ListenerReasonInvalidRouteKinds),
+					Message:            fmt.Sprintf("Unsupported Route Kind %q", groupKind.Kind),
 				})
 
+				hasInvalidRouteKind = true
+				continue
+			}
+
+			// Protocol compliant with route type
+			if listener.Protocol == v1alpha2.HTTPProtocolType && groupKind.Kind != routeHTTPKind ||
+				listener.Protocol == v1alpha2.HTTPSProtocolType && groupKind.Kind != routeHTTPKind ||
+				listener.Protocol == v1alpha2.TCPProtocolType && groupKind.Kind != routeTCPKind ||
+				listener.Protocol == v1alpha2.TLSProtocolType && groupKind.Kind != routeTLSKind && groupKind.Kind != routeTCPKind {
+				// update "Detached" status true with "UnsupportedProtocol" reason
+				listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
+					Type:               string(v1alpha2.ListenerConditionDetached),
+					Status:             metav1.ConditionTrue,
+					LastTransitionTime: metav1.Now(),
+					Reason:             string(v1alpha2.ListenerReasonUnsupportedProtocol),
+					Message:            fmt.Sprintf("listener protocol %q not supported with route groupKind %q", listener.Protocol, groupKind.Kind),
+				})
+
+				hasInvalidRouteKind = true
 				continue
 			}
 		}
-
-		// Protocol compliant with route type
-		if listener.Protocol == v1alpha2.HTTPProtocolType && listener.Routes.Kind != routeHTTPKind ||
-			listener.Protocol == v1alpha2.HTTPSProtocolType && listener.Routes.Kind != routeHTTPKind ||
-			listener.Protocol == v1alpha2.TCPProtocolType && listener.Routes.Kind != routeTCPKind ||
-			listener.Protocol == v1alpha2.TLSProtocolType && listener.Routes.Kind != routeTLSKind && listener.Routes.Kind != routeTCPKind {
-			// update "Detached" status true with "UnsupportedProtocol" reason
-			listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
-				Type:               string(v1alpha1.ListenerConditionDetached),
-				Status:             metav1.ConditionTrue,
-				LastTransitionTime: metav1.Now(),
-				Reason:             string(v1alpha1.ListenerReasonUnsupportedProtocol),
-				Message:            fmt.Sprintf("listener protocol %q not supported with route kind %q", listener.Protocol, listener.Routes.Kind),
-			})
-
+		if hasInvalidRouteKind {
 			continue
 		}
 
 		if _, ok := allocatedPort[listener.Port]; ok {
 			listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
-				Type:               string(v1alpha1.ListenerConditionDetached),
+				Type:               string(v1alpha2.ListenerConditionDetached),
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
-				Reason:             string(v1alpha1.ListenerReasonPortUnavailable),
+				Reason:             string(v1alpha2.ListenerReasonPortUnavailable),
 				Message:            fmt.Sprintf("port %d unavailable", listener.Port),
 			})
 
@@ -389,10 +395,10 @@ func (p *Provider) fillGatewayConf(ctx context.Context, client Client, gateway *
 		if err != nil {
 			// update "Detached" status with "PortUnavailable" reason
 			listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
-				Type:               string(v1alpha1.ListenerConditionDetached),
+				Type:               string(v1alpha2.ListenerConditionDetached),
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
-				Reason:             string(v1alpha1.ListenerReasonPortUnavailable),
+				Reason:             string(v1alpha2.ListenerReasonPortUnavailable),
 				Message:            fmt.Sprintf("Cannot find entryPoint for Gateway: %v", err),
 			})
 
@@ -404,10 +410,10 @@ func (p *Provider) fillGatewayConf(ctx context.Context, client Client, gateway *
 			if listener.TLS == nil || (len(listener.TLS.CertificateRefs) > 0 && listener.TLS.Mode != nil && *listener.TLS.Mode != v1alpha2.TLSModePassthrough) {
 				// update "Detached" status with "UnsupportedProtocol" reason
 				listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
-					Type:               string(v1alpha1.ListenerConditionDetached),
+					Type:               string(v1alpha2.ListenerConditionDetached),
 					Status:             metav1.ConditionTrue,
 					LastTransitionTime: metav1.Now(),
-					Reason:             string(v1alpha1.ListenerReasonUnsupportedProtocol),
+					Reason:             string(v1alpha2.ListenerReasonUnsupportedProtocol),
 					Message:            fmt.Sprintf("No TLS configuration for Gateway Listener port %d and protocol %q", listener.Port, listener.Protocol),
 				})
 
@@ -430,53 +436,70 @@ func (p *Provider) fillGatewayConf(ctx context.Context, client Client, gateway *
 			// Protocol TLS -> Passthrough -> TLSRoute
 			// Protocol TLS -> Terminate -> TCPRoute
 			// Protocol HTTPS -> Terminate -> HTTPRoute
-			if !(listener.Protocol == v1alpha2.TLSProtocolType && isTLSPassthrough && listener.Routes.Kind == routeTLSKind ||
-				listener.Protocol == v1alpha2.TLSProtocolType && !isTLSPassthrough && listener.Routes.Kind == routeTCPKind ||
-				listener.Protocol == v1alpha2.HTTPSProtocolType && !isTLSPassthrough && listener.Routes.Kind == routeHTTPKind) {
-				// update "ConditionDetached" status true with "ReasonUnsupportedProtocol" reason
-				listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
-					Type:               string(v1alpha1.ListenerConditionDetached),
-					Status:             metav1.ConditionTrue,
-					LastTransitionTime: metav1.Now(),
-					Reason:             string(v1alpha1.ListenerReasonUnsupportedProtocol),
-					Message: fmt.Sprintf("Unsupported route kind %q with %q",
-						listener.Routes.Kind, tlsModeType),
-				})
+			var hasInvalidRouteKind bool
+			for _, groupKind := range listener.AllowedRoutes.Kinds {
+				if !(listener.Protocol == v1alpha2.TLSProtocolType && isTLSPassthrough && groupKind.Kind == routeTLSKind ||
+					listener.Protocol == v1alpha2.TLSProtocolType && !isTLSPassthrough && groupKind.Kind == routeTCPKind ||
+					listener.Protocol == v1alpha2.HTTPSProtocolType && !isTLSPassthrough && groupKind.Kind == routeHTTPKind) {
+					// update "ConditionDetached" status true with "ReasonUnsupportedProtocol" reason
+					listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
+						Type:               string(v1alpha2.ListenerConditionDetached),
+						Status:             metav1.ConditionTrue,
+						LastTransitionTime: metav1.Now(),
+						Reason:             string(v1alpha2.ListenerReasonUnsupportedProtocol),
+						Message: fmt.Sprintf("Unsupported route groupKind %q with %q",
+							groupKind.Kind, tlsModeType),
+					})
 
+					hasInvalidRouteKind = true
+					continue
+				}
+			}
+			if hasInvalidRouteKind {
 				continue
 			}
 
 			if !isTLSPassthrough {
-				if listener.TLS.CertificateRef.Kind != "Secret" || listener.TLS.CertificateRef.Group != "core" {
-					// update "ResolvedRefs" status true with "InvalidCertificateRef" reason
-					listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
-						Type:               string(v1alpha1.ListenerConditionResolvedRefs),
-						Status:             metav1.ConditionFalse,
-						LastTransitionTime: metav1.Now(),
-						Reason:             string(v1alpha1.ListenerReasonInvalidCertificateRef),
-						Message:            fmt.Sprintf("Unsupported TLS CertificateRef group/kind : %v/%v", listener.TLS.CertificateRef.Group, listener.TLS.CertificateRef.Kind),
-					})
-
-					continue
-				}
-
-				configKey := gateway.Namespace + "/" + listener.TLS.CertificateRef.Name
-				if _, tlsExists := tlsConfigs[configKey]; !tlsExists {
-					tlsConf, err := getTLS(client, listener.TLS.CertificateRef.Name, gateway.Namespace)
-					if err != nil {
+				var hasInvalidCertificateRef bool
+				for _, certificateRef := range listener.TLS.CertificateRefs {
+					if string(*certificateRef.Kind) != "Secret" || string(*certificateRef.Group) != "core" {
 						// update "ResolvedRefs" status true with "InvalidCertificateRef" reason
 						listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
-							Type:               string(v1alpha1.ListenerConditionResolvedRefs),
+							Type:               string(v1alpha2.ListenerConditionResolvedRefs),
 							Status:             metav1.ConditionFalse,
 							LastTransitionTime: metav1.Now(),
-							Reason:             string(v1alpha1.ListenerReasonInvalidCertificateRef),
-							Message:            fmt.Sprintf("Error while retrieving certificate: %v", err),
+							Reason:             string(v1alpha2.ListenerReasonInvalidCertificateRef),
+							Message:            fmt.Sprintf("Unsupported TLS CertificateRef group/groupKind : %v/%v", certificateRef.Group, certificateRef.Kind),
 						})
 
+						hasInvalidCertificateRef = true
 						continue
 					}
 
-					tlsConfigs[configKey] = tlsConf
+					// TODO implement ReferencePolicy
+					// FIXME empty gateway Namespace
+					configKey := gateway.Namespace + "/" + string(certificateRef.Name)
+					if _, tlsExists := tlsConfigs[configKey]; !tlsExists {
+						tlsConf, err := getTLS(client, certificateRef.Name, gateway.Namespace)
+						if err != nil {
+							// update "ResolvedRefs" status true with "InvalidCertificateRef" reason
+							listenerStatuses[i].Conditions = append(listenerStatuses[i].Conditions, metav1.Condition{
+								Type:               string(v1alpha2.ListenerConditionResolvedRefs),
+								Status:             metav1.ConditionFalse,
+								LastTransitionTime: metav1.Now(),
+								Reason:             string(v1alpha2.ListenerReasonInvalidCertificateRef),
+								Message:            fmt.Sprintf("Error while retrieving certificate: %v", err),
+							})
+
+							hasInvalidCertificateRef = true
+							continue
+						}
+
+						tlsConfigs[configKey] = tlsConf
+					}
+				}
+				if hasInvalidCertificateRef {
+					continue
 				}
 			}
 		}
@@ -541,7 +564,7 @@ func gatewayHTTPRouteToHTTPConf(ctx context.Context, ep string, listener v1alpha
 					Status:             metav1.ConditionFalse,
 					LastTransitionTime: metav1.Now(),
 					Reason:             string(v1alpha1.ListenerReasonDegradedRoutes), // FIXME
-					Message:            fmt.Sprintf("Skipping %s %s: cannot generate rule: %v", listener.Routes.Kind, httpRoute.Name, err),
+					Message:            fmt.Sprintf("Skipping %s %s: cannot generate rule: %v", httpRoute.Kind, httpRoute.Name, err),
 				})
 			}
 
@@ -561,11 +584,11 @@ func gatewayHTTPRouteToHTTPConf(ctx context.Context, ep string, listener v1alpha
 			if err != nil {
 				// update "ResolvedRefs" status true with "DroppedRoutes" reason
 				conditions = append(conditions, metav1.Condition{
-					Type:               string(v1alpha1.ListenerConditionResolvedRefs),
+					Type:               string(v1alpha2.ListenerConditionResolvedRefs),
 					Status:             metav1.ConditionFalse,
 					LastTransitionTime: metav1.Now(),
-					Reason:             string(v1alpha1.ListenerReasonDegradedRoutes),
-					Message:            fmt.Sprintf("Skipping %s %s: cannot make router's key with rule %s: %v", listener.Routes.Kind, httpRoute.Name, router.Rule, err),
+					Reason:             string(v1alpha1.ListenerReasonDegradedRoutes), // FIXME
+					Message:            fmt.Sprintf("Skipping %s %s: cannot make router's key with rule %s: %v", httpRoute.Kind, httpRoute.Name, router.Rule, err),
 				})
 
 				// TODO update the RouteStatus condition / deduplicate conditions on listener
@@ -584,11 +607,11 @@ func gatewayHTTPRouteToHTTPConf(ctx context.Context, ep string, listener v1alpha
 				if err != nil {
 					// update "ResolvedRefs" status true with "DroppedRoutes" reason
 					conditions = append(conditions, metav1.Condition{
-						Type:               string(v1alpha1.ListenerConditionResolvedRefs),
+						Type:               string(v1alpha2.ListenerConditionResolvedRefs),
 						Status:             metav1.ConditionFalse,
 						LastTransitionTime: metav1.Now(),
-						Reason:             string(v1alpha1.ListenerReasonDegradedRoutes),
-						Message:            fmt.Sprintf("Cannot load service from %s %s/%s : %v", listener.Routes.Kind, gateway.Namespace, httpRoute.Name, err),
+						Reason:             string(v1alpha1.ListenerReasonDegradedRoutes), // FIXME
+						Message:            fmt.Sprintf("Cannot load service from %s %s/%s : %v", httpRoute.Kind, gateway.Namespace, httpRoute.Name, err),
 					})
 
 					// TODO update the RouteStatus condition / deduplicate conditions on listener
@@ -613,7 +636,7 @@ func gatewayHTTPRouteToHTTPConf(ctx context.Context, ep string, listener v1alpha
 	return conditions
 }
 
-func gatewayTCPRouteToTCPConf(ctx context.Context, ep string, listener v1alpha2.Listener, gateway *v1alpha1.Gateway, client Client, conf *dynamic.Configuration) []metav1.Condition {
+func gatewayTCPRouteToTCPConf(ctx context.Context, ep string, listener v1alpha2.Listener, gateway *v1alpha2.Gateway, client Client, conf *dynamic.Configuration) []metav1.Condition {
 	// TODO: support RouteNamespaces
 	selector := labels.Everything()
 	if listener.AllowedRoutes != nil && listener.AllowedRoutes.Namespaces != nil && listener.AllowedRoutes.Namespaces.Selector != nil {
@@ -624,11 +647,11 @@ func gatewayTCPRouteToTCPConf(ctx context.Context, ep string, listener v1alpha2.
 	if err != nil {
 		// update "ResolvedRefs" status true with "InvalidRoutesRef" reason
 		return []metav1.Condition{{
-			Type:               string(v1alpha1.ListenerConditionResolvedRefs),
+			Type:               string(v1alpha2.ListenerConditionResolvedRefs),
 			Status:             metav1.ConditionFalse,
 			LastTransitionTime: metav1.Now(),
-			Reason:             string(v1alpha1.ListenerReasonInvalidRoutesRef),
-			Message:            fmt.Sprintf("Cannot fetch %ss for namespace %q and matchLabels %v", listener.Routes.Kind, gateway.Namespace, listener.Routes.Selector.MatchLabels),
+			Reason:             string(v1alpha1.ListenerReasonInvalidRoutesRef), // FIXME
+			Message:            fmt.Sprintf("Cannot fetch TCPRoutes for namespace %q and selector %v", gateway.Namespace, selector),
 		}}
 	}
 
@@ -641,11 +664,11 @@ func gatewayTCPRouteToTCPConf(ctx context.Context, ep string, listener v1alpha2.
 	for _, tcpRoute := range tcpRoutes {
 		if len(tcpRoute.Spec.Rules) > 1 {
 			conditions = append(conditions, metav1.Condition{
-				Type:               string(v1alpha1.ListenerConditionResolvedRefs),
+				Type:               string(v1alpha2.ListenerConditionResolvedRefs),
 				Status:             metav1.ConditionFalse,
 				LastTransitionTime: metav1.Now(),
 				Reason:             string(v1alpha1.ListenerReasonDegradedRoutes),
-				Message:            fmt.Sprintf("Skipping %s %s: multiple rules are not supported", listener.Routes.Kind, tcpRoute.Name),
+				Message:            fmt.Sprintf("Skipping TCPRoute %s: multiple rules are not supported", tcpRoute.Name),
 			})
 			continue
 		}
@@ -667,11 +690,11 @@ func gatewayTCPRouteToTCPConf(ctx context.Context, ep string, listener v1alpha2.
 			if err != nil {
 				// update "ResolvedRefs" status true with "DroppedRoutes" reason
 				conditions = append(conditions, metav1.Condition{
-					Type:               string(v1alpha1.ListenerConditionResolvedRefs),
+					Type:               string(v1alpha2.ListenerConditionResolvedRefs),
 					Status:             metav1.ConditionFalse,
 					LastTransitionTime: metav1.Now(),
 					Reason:             string(v1alpha1.ListenerReasonDegradedRoutes),
-					Message:            fmt.Sprintf("Skipping %s %s: cannot make router's key with rule %s: %v", listener.Routes.Kind, tcpRoute.Name, router.Rule, err),
+					Message:            fmt.Sprintf("Skipping TCPRoute %s: cannot make router's key with rule %s: %v", tcpRoute.Name, router.Rule, err),
 				})
 
 				// TODO update the RouteStatus condition / deduplicate conditions on listener
@@ -679,20 +702,20 @@ func gatewayTCPRouteToTCPConf(ctx context.Context, ep string, listener v1alpha2.
 			}
 
 			// Should not happen due to validation
-			// https://github.com/kubernetes-sigs/gateway-api/blob/af68a622f072811767d246ef5897135d93af0704/apis/v1alpha1/tcproute_types.go#L76
-			if routeRule.ForwardTo == nil {
+			// https://github.com/kubernetes-sigs/gateway-api/blob/ff9883da4cad8554cd300394f725ab3a27502785/apis/v1alpha2/tcproute_types.go#L74
+			if len(routeRule.BackendRefs) == 0 {
 				continue
 			}
 
-			wrrService, subServices, err := loadTCPServices(client, gateway.Namespace, routeRule.ForwardTo)
+			wrrService, subServices, err := loadTCPServices(client, gateway.Namespace, routeRule.BackendRefs)
 			if err != nil {
 				// update "ResolvedRefs" status true with "DroppedRoutes" reason
 				conditions = append(conditions, metav1.Condition{
-					Type:               string(v1alpha1.ListenerConditionResolvedRefs),
+					Type:               string(v1alpha2.ListenerConditionResolvedRefs),
 					Status:             metav1.ConditionFalse,
 					LastTransitionTime: metav1.Now(),
 					Reason:             string(v1alpha1.ListenerReasonDegradedRoutes),
-					Message:            fmt.Sprintf("Cannot load service from %s %s/%s : %v", listener.Routes.Kind, gateway.Namespace, tcpRoute.Name, err),
+					Message:            fmt.Sprintf("Cannot load service from TCPRoute %s/%s : %v", gateway.Namespace, tcpRoute.Name, err),
 				})
 
 				// TODO update the RouteStatus condition / deduplicate conditions on listener
@@ -716,7 +739,7 @@ func gatewayTCPRouteToTCPConf(ctx context.Context, ep string, listener v1alpha2.
 	return conditions
 }
 
-func gatewayTLSRouteToTCPConf(ctx context.Context, ep string, listener v1alpha2.Listener, gateway *v1alpha1.Gateway, client Client, conf *dynamic.Configuration) []metav1.Condition {
+func gatewayTLSRouteToTCPConf(ctx context.Context, ep string, listener v1alpha2.Listener, gateway *v1alpha2.Gateway, client Client, conf *dynamic.Configuration) []metav1.Condition {
 	// TODO: support RouteNamespaces
 	selector := labels.Everything()
 	if listener.AllowedRoutes != nil && listener.AllowedRoutes.Namespaces != nil && listener.AllowedRoutes.Namespaces.Selector != nil {
@@ -730,8 +753,8 @@ func gatewayTLSRouteToTCPConf(ctx context.Context, ep string, listener v1alpha2.
 			Type:               string(v1alpha2.ListenerConditionResolvedRefs),
 			Status:             metav1.ConditionFalse,
 			LastTransitionTime: metav1.Now(),
-			Reason:             string(v1alpha2.ListenerReasonInvalidRouteKinds),
-			Message:            fmt.Sprintf("Cannot fetch %q for namespace %q and selector %v", listener.AllowedRoutes.Kinds, gateway.Namespace, selector),
+			Reason:             string(v1alpha1.ListenerReasonInvalidRoutesRef), // FIXME
+			Message:            fmt.Sprintf("Cannot fetch TLSRoutes for namespace %q and selector %v", gateway.Namespace, selector),
 		}}
 	}
 
@@ -747,11 +770,11 @@ func gatewayTLSRouteToTCPConf(ctx context.Context, ep string, listener v1alpha2.
 			if err != nil {
 				// update "ResolvedRefs" status true with "DroppedRoutes" reason
 				conditions = append(conditions, metav1.Condition{
-					Type:               string(v1alpha1.ListenerConditionResolvedRefs),
+					Type:               string(v1alpha2.ListenerConditionResolvedRefs),
 					Status:             metav1.ConditionFalse,
 					LastTransitionTime: metav1.Now(),
 					Reason:             string(v1alpha1.ListenerReasonDegradedRoutes),
-					Message:            fmt.Sprintf("Skipping %s %s: cannot make route's SNI match: %v", listener.Routes.Kind, tlsRoute.Name, err),
+					Message:            fmt.Sprintf("Skipping TLSRoutes %s: cannot make route's SNI match: %v", tlsRoute.Name, err),
 				})
 				// TODO update the RouteStatus condition / deduplicate conditions on listener
 				continue
@@ -772,11 +795,11 @@ func gatewayTLSRouteToTCPConf(ctx context.Context, ep string, listener v1alpha2.
 			if err != nil {
 				// update "ResolvedRefs" status true with "DroppedRoutes" reason
 				conditions = append(conditions, metav1.Condition{
-					Type:               string(v1alpha1.ListenerConditionResolvedRefs),
+					Type:               string(v1alpha2.ListenerConditionResolvedRefs),
 					Status:             metav1.ConditionFalse,
 					LastTransitionTime: metav1.Now(),
 					Reason:             string(v1alpha1.ListenerReasonDegradedRoutes),
-					Message:            fmt.Sprintf("Skipping %s %s: cannot make router's key with rule %s: %v", listener.Routes.Kind, tlsRoute.Name, router.Rule, err),
+					Message:            fmt.Sprintf("Skipping TLSRoutes %s: cannot make router's key with rule %s: %v", tlsRoute.Name, router.Rule, err),
 				})
 
 				// TODO update the RouteStatus condition / deduplicate conditions on listener
@@ -793,7 +816,7 @@ func gatewayTLSRouteToTCPConf(ctx context.Context, ep string, listener v1alpha2.
 			if err != nil {
 				// update "ResolvedRefs" status true with "DroppedRoutes" reason
 				conditions = append(conditions, metav1.Condition{
-					Type:               string(v1alpha1.ListenerConditionResolvedRefs),
+					Type:               string(v1alpha2.ListenerConditionResolvedRefs),
 					Status:             metav1.ConditionFalse,
 					LastTransitionTime: metav1.Now(),
 					Reason:             string(v1alpha1.ListenerReasonDegradedRoutes),
@@ -850,10 +873,10 @@ func (p *Provider) makeGatewayStatus(listenerStatuses []v1alpha2.ListenerStatus)
 	if result != nil {
 		// GatewayConditionReady "Ready", GatewayConditionReason "ListenersNotValid"
 		gatewayStatus.Conditions = append(gatewayStatus.Conditions, metav1.Condition{
-			Type:               string(v1alpha1.GatewayConditionReady),
+			Type:               string(v1alpha2.GatewayConditionReady),
 			Status:             metav1.ConditionFalse,
 			LastTransitionTime: metav1.Now(),
-			Reason:             string(v1alpha1.GatewayReasonListenersNotValid),
+			Reason:             string(v1alpha2.GatewayReasonListenersNotValid),
 			Message:            "All Listeners must be valid",
 		})
 
@@ -865,7 +888,7 @@ func (p *Provider) makeGatewayStatus(listenerStatuses []v1alpha2.ListenerStatus)
 	gatewayStatus.Conditions = append(gatewayStatus.Conditions,
 		// update "Scheduled" status with "ResourcesAvailable" reason
 		metav1.Condition{
-			Type:               string(v1alpha1.GatewayConditionScheduled),
+			Type:               string(v1alpha2.GatewayConditionScheduled),
 			Status:             metav1.ConditionTrue,
 			Reason:             "ResourcesAvailable",
 			Message:            "Resources available",
@@ -873,7 +896,7 @@ func (p *Provider) makeGatewayStatus(listenerStatuses []v1alpha2.ListenerStatus)
 		},
 		// update "Ready" status with "ListenersValid" reason
 		metav1.Condition{
-			Type:               string(v1alpha1.GatewayConditionReady),
+			Type:               string(v1alpha2.GatewayConditionReady),
 			Status:             metav1.ConditionTrue,
 			Reason:             "ListenersValid",
 			Message:            "Listeners valid",
@@ -929,28 +952,26 @@ func hostRule(httpRouteSpec v1alpha2.HTTPRouteSpec) (string, error) {
 	return hostRegexp, nil
 }
 
-func hostSNIRule(rule v1alpha2.TLSRouteRule) (string, error) {
+func hostSNIRule(rule v1alpha2.TLSRouteSpec) (string, error) {
 	uniqHostnames := map[string]struct{}{}
 	var hostnames []string
-	for _, match := range rule.Matches {
-		for _, hostname := range match.SNIs {
-			if len(hostname) == 0 {
-				continue
-			}
+	for _, hostname := range rule.Hostnames {
+		if len(hostname) == 0 {
+			continue
+		}
 
-			h := string(hostname)
+		h := string(hostname)
 
-			// first naive validation, should be improved
-			wildcardNb := strings.Count(h, "*")
-			if wildcardNb != 0 && !strings.HasPrefix(h, "*.") || wildcardNb > 1 {
-				return "", fmt.Errorf("invalid hostname: %q", h)
-			}
+		// first naive validation, should be improved
+		wildcardNb := strings.Count(h, "*")
+		if wildcardNb != 0 && !strings.HasPrefix(h, "*.") || wildcardNb > 1 {
+			return "", fmt.Errorf("invalid hostname: %q", h)
+		}
 
-			hostname := "`" + h + "`"
-			if _, ok := uniqHostnames[hostname]; !ok {
-				hostnames = append(hostnames, hostname)
-				uniqHostnames[hostname] = struct{}{}
-			}
+		hostname := "`" + h + "`"
+		if _, ok := uniqHostnames[hostname]; !ok {
+			hostnames = append(hostnames, hostname)
+			uniqHostnames[hostname] = struct{}{}
 		}
 	}
 
@@ -1040,7 +1061,7 @@ func (p *Provider) entryPointName(port v1alpha2.PortNumber, protocol v1alpha2.Pr
 		if strings.HasSuffix(entryPoint.Address, ":"+portStr) {
 			// if the protocol is HTTP the entryPoint must have no TLS conf
 			// Not relevant for v1alpha1.TLSProtocolType && v1alpha1.TCPProtocolType
-			if protocol == v1alpha1.HTTPProtocolType && entryPoint.HasHTTPTLSConf {
+			if protocol == v1alpha2.HTTPProtocolType && entryPoint.HasHTTPTLSConf {
 				continue
 			}
 
@@ -1070,8 +1091,8 @@ func makeID(namespace, name string) string {
 	return namespace + "-" + name
 }
 
-func getTLS(k8sClient Client, secretName, namespace string) (*tls.CertAndStores, error) {
-	secret, exists, err := k8sClient.GetSecret(namespace, secretName)
+func getTLS(k8sClient Client, secretName v1alpha2.ObjectName, namespace string) (*tls.CertAndStores, error) {
+	secret, exists, err := k8sClient.GetSecret(namespace, string(secretName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch secret %s/%s: %w", namespace, secretName, err)
 	}
@@ -1079,7 +1100,7 @@ func getTLS(k8sClient Client, secretName, namespace string) (*tls.CertAndStores,
 		return nil, fmt.Errorf("secret %s/%s does not exist", namespace, secretName)
 	}
 
-	cert, key, err := getCertificateBlocks(secret, namespace, secretName)
+	cert, key, err := getCertificateBlocks(secret, namespace, string(secretName))
 	if err != nil {
 		return nil, err
 	}
