@@ -206,7 +206,14 @@
       "stale": true,
       "cache": true,
       "exposedByDefault": true,
-      "defaultRule": "xxxx"
+      "defaultRule": "xxxx",
+      "connectAware": true,
+      "connectByDefault": true,
+      "serviceName": "MyServiceName",
+      "namespaces": [
+        "xxxx",
+        "xxxx"
+      ]
     },
     "ecs": {
       "constraints": "Label(\"foo\", \"bar\")",

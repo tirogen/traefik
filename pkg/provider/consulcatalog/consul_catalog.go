@@ -45,8 +45,8 @@ type itemData struct {
 type Provider struct {
 	Constraints       string          `description:"Constraints is an expression that Traefik matches against the container's labels to determine whether to create any route for that container." json:"constraints,omitempty" toml:"constraints,omitempty" yaml:"constraints,omitempty" export:"true"`
 	Endpoint          *EndpointConfig `description:"Consul endpoint settings" json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty" export:"true"`
-	Prefix            string          `description:"Prefix for consul service tags. Default 'traefik'" json:"prefix,omitempty" toml:"prefix,omitempty" yaml:"prefix,omitempty" export:"true"`
-	RefreshInterval   ptypes.Duration `description:"Interval for check Consul API. Default 15s" json:"refreshInterval,omitempty" toml:"refreshInterval,omitempty" yaml:"refreshInterval,omitempty" export:"true"`
+	Prefix            string          `description:"Prefix for consul service tags." json:"prefix,omitempty" toml:"prefix,omitempty" yaml:"prefix,omitempty" export:"true"`
+	RefreshInterval   ptypes.Duration `description:"Interval for check Consul API." json:"refreshInterval,omitempty" toml:"refreshInterval,omitempty" yaml:"refreshInterval,omitempty" export:"true"`
 	RequireConsistent bool            `description:"Forces the read to be fully consistent." json:"requireConsistent,omitempty" toml:"requireConsistent,omitempty" yaml:"requireConsistent,omitempty" export:"true"`
 	Stale             bool            `description:"Use stale consistency for catalog reads." json:"stale,omitempty" toml:"stale,omitempty" yaml:"stale,omitempty" export:"true"`
 	Cache             bool            `description:"Use local agent caching for catalog reads." json:"cache,omitempty" toml:"cache,omitempty" yaml:"cache,omitempty" export:"true"`
@@ -55,6 +55,7 @@ type Provider struct {
 	ConnectAware      bool            `description:"Enable Consul Connect support." json:"connectAware,omitempty" toml:"connectAware,omitempty" yaml:"connectAware,omitempty" export:"true"`
 	ConnectByDefault  bool            `description:"Consider every service as Connect capable by default." json:"connectByDefault,omitempty" toml:"connectByDefault,omitempty" yaml:"connectByDefault,omitempty" export:"true"`
 	ServiceName       string          `description:"Name of the Traefik service in Consul Catalog (needs to be registered via the orchestrator or manually)." json:"serviceName,omitempty" toml:"serviceName,omitempty" yaml:"serviceName,omitempty" export:"true"`
+	Namespaces        []string        `description:"Consul namespaces. Use * to search across all namespaces." json:"namespaces,omitempty" toml:"namespaces,omitempty" yaml:"namespaces,omitempty"`
 
 	client         *api.Client
 	defaultRuleTpl *template.Template
@@ -186,23 +187,41 @@ func (p *Provider) Provide(configurationChan chan<- dynamic.Message, pool *safe.
 }
 
 func (p *Provider) loadConfiguration(ctx context.Context, certInfo *connectCert, configurationChan chan<- dynamic.Message) error {
-	data, err := p.getConsulServicesData(ctx)
-	if err != nil {
-		return err
+	namespaces := p.Namespaces
+	if len(namespaces) == 0 {
+		var err error
+		namespaces, err = p.fetchNamespaces()
+		if err != nil {
+			return fmt.Errorf("fetch namespaces: %w", err)
+		}
+	}
+
+	var servicesData []itemData
+	for _, namespace := range namespaces {
+		data, err := p.getConsulServicesData(ctx, namespace)
+		if err != nil {
+			return err
+		}
+
+		servicesData = append(servicesData, data...)
 	}
 
 	configurationChan <- dynamic.Message{
 		ProviderName:  "consulcatalog",
-		Configuration: p.buildConfiguration(ctx, data, certInfo),
+		Configuration: p.buildConfiguration(ctx, servicesData, certInfo),
 	}
 
 	return nil
 }
 
-func (p *Provider) getConsulServicesData(ctx context.Context) ([]itemData, error) {
+func (p *Provider) getConsulServicesData(ctx context.Context, namespace string) ([]itemData, error) {
 	// The query option "Filter" is not supported by /catalog/services.
 	// https://www.consul.io/api/catalog.html#list-services
 	opts := &api.QueryOptions{AllowStale: p.Stale, RequireConsistent: p.RequireConsistent, UseCache: p.Cache}
+	if namespace != api.IntentionDefaultNamespace {
+		opts.Namespace = namespace
+	}
+
 	serviceNames, _, err := p.client.Catalog().Services(opts)
 	if err != nil {
 		return nil, err
@@ -210,7 +229,7 @@ func (p *Provider) getConsulServicesData(ctx context.Context) ([]itemData, error
 
 	var data []itemData
 	for name, tags := range serviceNames {
-		logger := log.FromContext(log.With(ctx, log.Str("serviceName", name)))
+		logger := log.FromContext(log.With(ctx, log.Str("serviceName", name), log.Str("namespace", namespace)))
 
 		svcCfg, err := p.getConfiguration(tagsToNeutralLabels(tags, p.Prefix))
 		if err != nil {
@@ -239,7 +258,7 @@ func (p *Provider) getConsulServicesData(ctx context.Context) ([]itemData, error
 			continue
 		}
 
-		consulServices, statuses, err := p.fetchService(ctx, name, svcCfg.ConsulCatalog.Connect)
+		consulServices, statuses, err := p.fetchService(ctx, name, namespace, svcCfg.ConsulCatalog.Connect)
 		if err != nil {
 			return nil, err
 		}
@@ -252,7 +271,7 @@ func (p *Provider) getConsulServicesData(ctx context.Context) ([]itemData, error
 
 			namespace := consulService.Namespace
 			if namespace == "" {
-				namespace = "default"
+				namespace = api.IntentionDefaultNamespace
 			}
 
 			status, exists := statuses[consulService.ID+consulService.ServiceID]
@@ -287,13 +306,17 @@ func (p *Provider) getConsulServicesData(ctx context.Context) ([]itemData, error
 	return data, nil
 }
 
-func (p *Provider) fetchService(ctx context.Context, name string, connectEnabled bool) ([]*api.CatalogService, map[string]string, error) {
+func (p *Provider) fetchService(ctx context.Context, name, namespace string, connectEnabled bool) ([]*api.CatalogService, map[string]string, error) {
 	var tagFilter string
 	if !p.ExposedByDefault {
 		tagFilter = p.Prefix + ".enable=true"
 	}
 
 	opts := &api.QueryOptions{AllowStale: p.Stale, RequireConsistent: p.RequireConsistent, UseCache: p.Cache}
+	if namespace != api.IntentionDefaultNamespace {
+		opts.Namespace = namespace
+	}
+
 	opts = opts.WithContext(ctx)
 
 	catalogFunc := p.client.Catalog().Service
@@ -325,6 +348,22 @@ func (p *Provider) fetchService(ctx context.Context, name string, connectEnabled
 	}
 
 	return consulServices, statuses, err
+}
+
+func (p *Provider) fetchNamespaces() ([]string, error) {
+	var namespaces []string
+	consulNamespaces, _, err := p.client.Namespaces().List(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ns := range consulNamespaces {
+		if ns.DeletedAt == nil {
+			namespaces = append(namespaces, ns.Name)
+		}
+	}
+
+	return namespaces, nil
 }
 
 func rootsWatchHandler(ctx context.Context, dest chan<- []string) func(watch.BlockingParamVal, interface{}) {

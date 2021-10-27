@@ -429,11 +429,14 @@ Token is used to provide a per-request ACL token which overrides the agent's def
 `--providers.consulcatalog.exposedbydefault`:  
 Expose containers by default. (Default: ```true```)
 
+`--providers.consulcatalog.namespaces`:  
+Consul namespaces. Use * to search across all namespaces. (Default: ```default```)
+
 `--providers.consulcatalog.prefix`:  
-Prefix for consul service tags. Default 'traefik' (Default: ```traefik```)
+Prefix for consul service tags. (Default: ```traefik```)
 
 `--providers.consulcatalog.refreshinterval`:  
-Interval for check Consul API. Default 15s (Default: ```15```)
+Interval for check Consul API. (Default: ```15```)
 
 `--providers.consulcatalog.requireconsistent`:  
 Forces the read to be fully consistent. (Default: ```false```)

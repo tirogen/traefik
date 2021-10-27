@@ -841,3 +841,61 @@ func (s *ConsulCatalogSuite) TestConsulConnect_NotAware(c *check.C) {
 	err = s.deregisterService("whoami1", false)
 	c.Assert(err, checker.IsNil)
 }
+
+func (s *ConsulCatalogSuite) TestConsulServiceWithNamespaceSelector(c *check.C) {
+	tempObjects := struct {
+		ConsulAddress string
+	}{
+		ConsulAddress: s.consulAddress,
+	}
+
+	file := s.adaptFile(c, "fixtures/consul_catalog/simple_with_namespace_selector.toml", tempObjects)
+	defer os.Remove(file)
+
+	whoami1 := &api.AgentServiceRegistration{
+		ID:        "whoami1",
+		Name:      "whoami",
+		Namespace: "not-test-ns",
+		Tags: []string{
+			"traefik.http.routers.whoami1.rule=Path(`/whoami1`)",
+			"traefik.http.routers.whoami1.service=whoami1",
+		},
+		Port:    80,
+		Address: s.composeProject.Container(c, "whoami1").NetworkSettings.IPAddress,
+	}
+	err := s.registerService(whoami1, false)
+	c.Assert(err, checker.IsNil)
+
+	whoami2 := &api.AgentServiceRegistration{
+		ID:        "whoami2",
+		Name:      "whoami",
+		Namespace: "test-ns",
+		Tags: []string{
+			"traefik.http.routers.whoami2.rule=Path(`/whoami2`)",
+			"traefik.http.routers.whoami2.service=whoami2",
+		},
+		Port:    80,
+		Address: s.composeProject.Container(c, "whoami2").NetworkSettings.IPAddress,
+	}
+	err = s.registerService(whoami2, false)
+	c.Assert(err, checker.IsNil)
+
+	// Start traefik
+	cmd, display := s.traefikCmd(withConfigFile(file))
+	defer display(c)
+	err = cmd.Start()
+	c.Assert(err, checker.IsNil)
+	defer s.killCmd(cmd)
+
+	err = try.GetRequest("http://127.0.0.1:8000/whoami2", 10*time.Second, try.StatusCodeIs(http.StatusOK))
+	c.Assert(err, checker.IsNil)
+
+	err = try.GetRequest("http://127.0.0.1:8000/whoami1", 10*time.Second, try.StatusCodeIs(http.StatusNotFound))
+	c.Assert(err, checker.IsNil)
+
+	err = s.deregisterService("whoami1", false)
+	c.Assert(err, checker.IsNil)
+
+	err = s.deregisterService("whoami2", false)
+	c.Assert(err, checker.IsNil)
+}

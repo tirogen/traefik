@@ -682,6 +682,10 @@ func TestDo_staticConfiguration(t *testing.T) {
 		Cache:             true,
 		ExposedByDefault:  true,
 		DefaultRule:       "PathPrefix(`/`)",
+		ConnectAware:      true,
+		ConnectByDefault:  true,
+		ServiceName:       "MyServiceName",
+		Namespaces:        []string{"foo", "bar"},
 	}
 
 	config.Providers.Ecs = &ecs.Provider{

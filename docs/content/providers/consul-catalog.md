@@ -631,6 +631,33 @@ providers:
 # ...
 ```
 
+### `namespaces`
+
+_Optional, Default="default"_
+
+Array of namespaces to watch.
+If set to `*`, watches all namespaces.
+
+```yaml tab="File (YAML)"
+providers:
+  consulCatalog:
+    namespaces:
+      - default
+      - production
+    # ...
+```
+
+```toml tab="File (TOML)"
+[providers.consulCatalog]
+  namespaces = ["default", "production"]
+  # ...
+```
+
+```bash tab="CLI"
+--providers.consulcatalog.namespaces=default,production
+# ...
+```
+
 ### `constraints`
 
 _Optional, Default=""_
