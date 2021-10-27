@@ -88,6 +88,7 @@ func (p *Provider) SetDefaults() {
 	p.ExposedByDefault = true
 	p.DefaultRule = DefaultTemplateRule
 	p.ServiceName = "traefik"
+	p.Namespaces = []string{api.IntentionDefaultNamespace}
 }
 
 // Init the provider.
@@ -188,7 +189,7 @@ func (p *Provider) Provide(configurationChan chan<- dynamic.Message, pool *safe.
 
 func (p *Provider) loadConfiguration(ctx context.Context, certInfo *connectCert, configurationChan chan<- dynamic.Message) error {
 	namespaces := p.Namespaces
-	if len(namespaces) == 0 {
+	if len(namespaces) == 1 && namespaces[0] == "*" {
 		var err error
 		namespaces, err = p.fetchNamespaces()
 		if err != nil {
