@@ -638,13 +638,19 @@ _Optional, Default="default"_
 Array of namespaces to watch.
 If set to `*`, watches all namespaces.
 
+!!! warning "Namespaces and Naming"
+
+    When using consul namespaces,
+    if there are tags to specify services or routers options,
+    the service/router name must be unique across all namespaces watched.
+
 ```yaml tab="File (YAML)"
 providers:
   consulCatalog:
     namespaces:
       - default
       - production
-    # ...
+      # ...
 ```
 
 ```toml tab="File (TOML)"
