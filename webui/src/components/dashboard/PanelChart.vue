@@ -20,7 +20,7 @@
         <div class="col-12 col-sm-6">
           <q-list>
             <q-item class="label-state">
-              <q-item-section avatar>
+              <q-item-section avatar v-bind:class="{'label-state-avatar-dimmed': getSuccess() === 0}">
                 <avatar-state state="positive"/>
               </q-item-section>
               <q-item-section class="label-state-text">
@@ -32,7 +32,7 @@
               </q-item-section>
             </q-item>
             <q-item class="label-state">
-              <q-item-section avatar>
+              <q-item-section avatar v-bind:class="{'label-state-avatar-dimmed': getWarnings() === 0}">
                 <avatar-state state="warning"/>
               </q-item-section>
               <q-item-section class="label-state-text">
@@ -44,7 +44,7 @@
               </q-item-section>
             </q-item>
             <q-item class="label-state">
-              <q-item-section avatar>
+              <q-item-section avatar v-bind:class="{'label-state-avatar-dimmed': getErrors() === 0}">
                 <avatar-state state="negative"/>
               </q-item-section>
               <q-item-section class="label-state-text">
@@ -202,6 +202,9 @@ export default {
       font-weight: 700;
       padding: 0 0 0 8px;
       color: inherit;
+    }
+   &-avatar-dimmed{
+      opacity: 0.33;
     }
   }
 </style>
