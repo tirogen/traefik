@@ -902,6 +902,35 @@ entryPoints:
 
 This whole section is dedicated to options, keyed by entry point, that will apply only to UDP routing.
 
+### Responses
+
+_Optional_
+
+`Responses` limits the number of expected datagrams for a server.
+
+If set to 0, no response expected. However, if a response is received and the session is still not finished, the response will be handled.
+
+```yaml tab="File (YAML)"
+entryPoints:
+  foo:
+    address: ':8000/udp'
+    udp:
+      responses: 10
+```
+
+```toml tab="File (TOML)"
+[entryPoints.foo]
+  address = ":8000/udp"
+
+    [entryPoints.foo.udp]
+      responses = 10
+```
+
+```bash tab="CLI"
+entrypoints.foo.address=:8000/udp
+entrypoints.foo.udp.responses=10
+```
+
 ### Timeout
 
 _Optional, Default=3s_
