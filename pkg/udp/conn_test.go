@@ -3,7 +3,9 @@ package udp
 import (
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"runtime"
 	"testing"
@@ -17,7 +19,7 @@ func TestConsecutiveWrites(t *testing.T) {
 	addr, err := net.ResolveUDPAddr("udp", ":0")
 	require.NoError(t, err)
 
-	ln, err := Listen("udp", addr, 3*time.Second)
+	ln, err := Listen("udp", addr, Session{Timeout: 3 * time.Second})
 	require.NoError(t, err)
 	defer func() {
 		err := ln.Close()
@@ -79,7 +81,7 @@ func TestListenNotBlocking(t *testing.T) {
 
 	require.NoError(t, err)
 
-	ln, err := Listen("udp", addr, 3*time.Second)
+	ln, err := Listen("udp", addr, Session{Timeout: 3 * time.Second})
 	require.NoError(t, err)
 	defer func() {
 		err := ln.Close()
@@ -168,7 +170,7 @@ func TestListenWithZeroTimeout(t *testing.T) {
 	addr, err := net.ResolveUDPAddr("udp", ":0")
 	require.NoError(t, err)
 
-	_, err = Listen("udp", addr, 0)
+	_, err = Listen("udp", addr, Session{})
 	assert.Error(t, err)
 }
 
@@ -186,7 +188,7 @@ func testTimeout(t *testing.T, withRead bool) {
 	addr, err := net.ResolveUDPAddr("udp", ":0")
 	require.NoError(t, err)
 
-	ln, err := Listen("udp", addr, 3*time.Second)
+	ln, err := Listen("udp", addr, Session{Timeout: 3 * time.Second})
 	require.NoError(t, err)
 	defer func() {
 		err := ln.Close()
@@ -222,7 +224,7 @@ func testTimeout(t *testing.T, withRead bool) {
 
 	assert.Equal(t, 10, len(ln.conns))
 
-	time.Sleep(ln.timeout + time.Second)
+	time.Sleep(ln.session.Timeout + time.Second)
 	assert.Equal(t, 0, len(ln.conns))
 }
 
@@ -230,7 +232,7 @@ func TestShutdown(t *testing.T) {
 	addr, err := net.ResolveUDPAddr("udp", ":0")
 	require.NoError(t, err)
 
-	l, err := Listen("udp", addr, 3*time.Second)
+	l, err := Listen("udp", addr, Session{Timeout: 3 * time.Second})
 	require.NoError(t, err)
 
 	go func() {
@@ -397,5 +399,91 @@ func requireEcho(t *testing.T, data string, conn io.ReadWriter, timeout time.Dur
 	case <-doneChan:
 	case <-time.Tick(timeout):
 		t.Fatalf("Timeout during echo for: %s", data)
+	}
+}
+
+func Test_ResponseClose(t *testing.T) {
+	responses := 42
+	testCases := []struct {
+		desc    string
+		session Session
+		wantErr bool
+	}{
+		{desc: "Empty"},
+		{
+			desc:    "With enough responses",
+			session: Session{Responses: responses * 2},
+		},
+		{
+			desc:    "Without enough responses",
+			session: Session{Responses: responses / 2},
+			wantErr: true,
+		},
+		{
+			desc:    "No response expected",
+			session: Session{Responses: 0},
+		},
+	}
+
+	for i, test := range testCases {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			backendAddr := fmt.Sprintf(":808%d", 2*i)
+			proxy, err := NewProxy(backendAddr)
+			require.NoError(t, err)
+
+			if test.session.Timeout == 0 {
+				test.session.Timeout = time.Second
+			}
+
+			proxyAddr := fmt.Sprintf(":808%d", 2*i+1)
+			go newServerWithSession(t, proxyAddr, test.session, proxy)
+
+			time.Sleep(time.Second)
+			udpConn, err := net.Dial("udp", proxyAddr)
+			require.NoError(t, err)
+
+			var gotErr bool
+			for i := 0; i < responses; i++ {
+				_, err = udpConn.Write([]byte("DATAWRITE"))
+				if err != nil {
+					t.Logf("%v\n", err)
+					gotErr = true
+				}
+
+				b := make([]byte, 2048)
+				n, err := udpConn.Read(b)
+				t.Logf("%s -> %d, %v", string(b), n, err)
+			}
+
+			assert.Equal(t, test.wantErr, gotErr)
+		})
+	}
+}
+
+const mtu = 1<<16 - 29
+
+// const mtu = 1 << 17
+
+// const mtu = 29
+
+func generate(n int) []byte {
+	res := make([]byte, n)
+	rand.Read(res)
+	return res
+}
+
+func TestTemp(t *testing.T) {
+	conn, err := net.Dial("udp", ":8001")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	_, err = conn.Write(generate(mtu))
+	if err != nil {
+		t.Log(err, mtu)
+		t.Error(err)
+		return
 	}
 }

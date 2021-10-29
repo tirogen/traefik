@@ -117,7 +117,9 @@ func (t *EntryPointsTransport) SetDefaults() {
 
 // UDPConfig is the UDP configuration of an entry point.
 type UDPConfig struct {
-	Timeout ptypes.Duration `description:"Timeout defines how long to wait on an idle session before releasing the related resources." json:"timeout,omitempty" toml:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Responses int             `description:"Responses limits the number of expected datagrams for a server." json:"responses,omitempty" toml:"responses,omitempty" yaml:"responses,omitempty" export:"true"`
+	Requests  int             `description:"Requests limits the number of expected datagrams for a server." json:"requests,omitempty" toml:"requests,omitempty" yaml:"requests,omitempty" export:"true"`
+	Timeout   ptypes.Duration `description:"Timeout defines how long to wait on an idle session before releasing the related resources." json:"timeout,omitempty" toml:"timeout,omitempty" yaml:"timeout,omitempty" export:"true"`
 }
 
 // SetDefaults sets the default values.

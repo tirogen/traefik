@@ -171,6 +171,12 @@ ReadTimeout is the maximum duration for reading the entire request, including th
 `TRAEFIK_ENTRYPOINTS_<NAME>_TRANSPORT_RESPONDINGTIMEOUTS_WRITETIMEOUT`:  
 WriteTimeout is the maximum duration before timing out writes of the response. If zero, no timeout is set. (Default: ```0```)
 
+`TRAEFIK_ENTRYPOINTS_<NAME>_UDP_REQUESTS`:  
+Requests limits the number of expected datagrams for a server. (Default: ```0```)
+
+`TRAEFIK_ENTRYPOINTS_<NAME>_UDP_RESPONSES`:  
+Responses limits the number of expected datagrams for a server. (Default: ```0```)
+
 `TRAEFIK_ENTRYPOINTS_<NAME>_UDP_TIMEOUT`:  
 Timeout defines how long to wait on an idle session before releasing the related resources. (Default: ```3```)
 

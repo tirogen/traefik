@@ -2,6 +2,7 @@ package udp
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -15,6 +16,22 @@ const closeRetryInterval = 500 * time.Millisecond
 
 var errClosedListener = errors.New("udp: listener closed")
 
+type Session struct {
+	// Requests FIXME
+	Requests int
+
+	// FIXME What about the 0
+	// Responses limits the number of expected datagrams for a server.
+	// If not set, no limitations
+	// If set to 0, no response expected. However, if a response is received
+	// and the session is still not finished, the response will be handled.
+	Responses int
+
+	// Timeout defines how long to wait on an idle session,
+	// before releasing its related resources.
+	Timeout time.Duration
+}
+
 // Listener augments a session-oriented Listener over a UDP PacketConn.
 type Listener struct {
 	pConn *net.UDPConn
@@ -27,14 +44,13 @@ type Listener struct {
 
 	acceptCh chan *Conn // no need for a Once, already indirectly guarded by accepting.
 
-	// timeout defines how long to wait on an idle session,
-	// before releasing its related resources.
-	timeout time.Duration
+	// session limit datagrams from server
+	session Session
 }
 
 // Listen creates a new listener.
-func Listen(network string, laddr *net.UDPAddr, timeout time.Duration) (*Listener, error) {
-	if timeout <= 0 {
+func Listen(network string, laddr *net.UDPAddr, session Session) (*Listener, error) {
+	if session.Timeout <= 0 {
 		return nil, errors.New("timeout should be greater than zero")
 	}
 
@@ -48,7 +64,7 @@ func Listen(network string, laddr *net.UDPAddr, timeout time.Duration) (*Listene
 		acceptCh:  make(chan *Conn),
 		conns:     make(map[string]*Conn),
 		accepting: true,
-		timeout:   timeout,
+		session:   session,
 	}
 
 	go l.readLoop()
@@ -63,6 +79,9 @@ func (l *Listener) Accept() (*Conn, error) {
 		// l.acceptCh got closed
 		return nil, errClosedListener
 	}
+
+	fmt.Println("Accept")
+
 	return c, nil
 }
 
@@ -81,11 +100,13 @@ func (l *Listener) Close() error {
 func (l *Listener) close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	err := l.pConn.Close()
 	for k, v := range l.conns {
 		v.close()
 		delete(l.conns, k)
 	}
+
 	close(l.acceptCh)
 	return err
 }
@@ -142,6 +163,7 @@ func (l *Listener) readLoop() {
 		if err != nil {
 			return
 		}
+
 		conn, err := l.getConn(raddr)
 		if err != nil {
 			continue
@@ -169,6 +191,7 @@ func (l *Listener) getConn(raddr net.Addr) (*Conn, error) {
 	if !l.accepting {
 		return nil, errClosedListener
 	}
+
 	conn = l.newConn(raddr)
 	l.conns[raddr.String()] = conn
 	l.acceptCh <- conn
@@ -185,7 +208,7 @@ func (l *Listener) newConn(rAddr net.Addr) *Conn {
 		readCh:    make(chan []byte),
 		sizeCh:    make(chan int),
 		doneCh:    make(chan struct{}),
-		timeout:   l.timeout,
+		session:   l.session,
 	}
 }
 
@@ -201,8 +224,9 @@ type Conn struct {
 
 	muActivity   sync.RWMutex
 	lastActivity time.Time // the last time the session saw either read or write activity
+	receiveCount int
 
-	timeout  time.Duration // for timeouts
+	session  Session // for timeouts
 	doneOnce sync.Once
 	doneCh   chan struct{}
 }
@@ -212,7 +236,7 @@ type Conn struct {
 // that is to say it waits on readCh to receive the slice of bytes that the Read operation wants to read onto.
 // The Read operation receives the signal that the data has been written to the slice of bytes through the sizeCh.
 func (c *Conn) readLoop() {
-	ticker := time.NewTicker(c.timeout / 10)
+	ticker := time.NewTicker(c.session.Timeout / 10)
 	defer ticker.Stop()
 
 	for {
@@ -222,7 +246,7 @@ func (c *Conn) readLoop() {
 				c.msgs = append(c.msgs, msg)
 			case <-ticker.C:
 				c.muActivity.RLock()
-				deadline := c.lastActivity.Add(c.timeout)
+				deadline := c.lastActivity.Add(c.session.Timeout)
 				c.muActivity.RUnlock()
 				if time.Now().After(deadline) {
 					c.Close()
@@ -242,7 +266,7 @@ func (c *Conn) readLoop() {
 			c.msgs = append(c.msgs, msg)
 		case <-ticker.C:
 			c.muActivity.RLock()
-			deadline := c.lastActivity.Add(c.timeout)
+			deadline := c.lastActivity.Add(c.session.Timeout)
 			c.muActivity.RUnlock()
 			if time.Now().After(deadline) {
 				c.Close()
@@ -258,6 +282,7 @@ func (c *Conn) readLoop() {
 func (c *Conn) Read(p []byte) (int, error) {
 	select {
 	case c.readCh <- p:
+		fmt.Println("read")
 		n := <-c.sizeCh
 		c.muActivity.Lock()
 		c.lastActivity = time.Now()
@@ -273,11 +298,28 @@ func (c *Conn) Read(p []byte) (int, error) {
 // Each call sends at most one datagram.
 // It is an error to send a message larger than the system's max UDP datagram size.
 func (c *Conn) Write(p []byte) (n int, err error) {
+	if c.listener == nil {
+		return 0, io.EOF
+	}
+	fmt.Println("write")
+
 	c.muActivity.Lock()
 	c.lastActivity = time.Now()
 	c.muActivity.Unlock()
+	n, err = c.listener.pConn.WriteTo(p, c.rAddr)
+	if err != nil {
+		return n, err
+	}
 
-	return c.listener.pConn.WriteTo(p, c.rAddr)
+	c.muActivity.Lock()
+	c.receiveCount++
+	c.muActivity.Unlock()
+
+	if c.receiveCount > c.session.Responses {
+		return n, c.Close()
+	}
+
+	return n, nil
 }
 
 func (c *Conn) close() {

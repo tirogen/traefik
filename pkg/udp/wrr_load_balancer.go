@@ -57,6 +57,7 @@ func (b *WRRLoadBalancer) AddWeightedServer(serverHandler Handler, weight *int) 
 	if weight != nil {
 		w = *weight
 	}
+
 	b.servers = append(b.servers, server{Handler: serverHandler, weight: w})
 }
 
@@ -95,7 +96,7 @@ func (b *WRRLoadBalancer) next() (Handler, error) {
 	}
 
 	// The algorithm below may look messy,
-	// but is actually very simple it calculates the GCD  and subtracts it on every iteration,
+	// but is actually very simple it calculates the GCD and subtracts it on every iteration,
 	// what interleaves servers and allows us not to build an iterator every time we readjust weights.
 
 	// Maximum weight across all enabled servers
