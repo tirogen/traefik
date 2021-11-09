@@ -8,9 +8,9 @@ fi
 
 rm -f dist/traefik
 
-FLAGS=()
+FLAG=""
 if [ -n "$VERBOSE" ]; then
-    FLAGS+=(-v)
+    FLAG="-v"
 fi
 
 if [ -z "$VERSION" ]; then
@@ -26,8 +26,7 @@ if [ -z "$DATE" ]; then
 fi
 
 # Build binaries
-# shellcheck disable=SC2086
-CGO_ENABLED=0 GOGC=off go build ${FLAGS[*]} -ldflags "-s -w \
+CGO_ENABLED=0 GOGC=off go build "${FLAG}" -ldflags "-s -w \
     -X github.com/traefik/traefik/v2/pkg/version.Version=$VERSION \
     -X github.com/traefik/traefik/v2/pkg/version.Codename=$CODENAME \
     -X github.com/traefik/traefik/v2/pkg/version.BuildDate=$DATE" \
