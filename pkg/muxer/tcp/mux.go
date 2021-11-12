@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/traefik/traefik/v2/pkg/ip"
 	"github.com/traefik/traefik/v2/pkg/log"
@@ -96,6 +97,7 @@ func NewMuxer() (*Muxer, error) {
 func (m Muxer) Match(meta ConnData) tcp.Handler {
 	for _, route := range m.routes {
 		if route.matchers.match(meta) {
+			time.Sleep(time.Second * 5)
 			return route.handler
 		}
 	}

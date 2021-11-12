@@ -18,6 +18,7 @@ func (s *HandlerSwitcher) ServeTCP(conn WriteCloser) {
 	} else {
 		conn.Close()
 	}
+	conn.Close()
 }
 
 // Switch sets the new TCP handler to use for new connections.
