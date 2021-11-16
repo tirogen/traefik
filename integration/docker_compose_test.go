@@ -16,9 +16,7 @@ import (
 	checker "github.com/vdemeester/shakers"
 )
 
-const (
-	composeProject = "minimal"
-)
+const composeProject = "minimal"
 
 // Docker tests suite.
 type DockerComposeSuite struct {
@@ -27,16 +25,12 @@ type DockerComposeSuite struct {
 
 func (s *DockerComposeSuite) SetUpSuite(c *check.C) {
 	s.createComposeProject(c, composeProject)
+
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 }
 
 func (s *DockerComposeSuite) TestComposeScale(c *check.C) {
-	serviceCount := 2
-	composeService := "whoami1"
-
-	s.composeProject.Services[0].Scale = serviceCount
-
 	tempObjects := struct {
 		DockerHost  string
 		DefaultRule string
@@ -44,11 +38,13 @@ func (s *DockerComposeSuite) TestComposeScale(c *check.C) {
 		DockerHost:  s.getDockerHost(),
 		DefaultRule: "Host(`{{ normalize .Name }}.docker.localhost`)",
 	}
+
 	file := s.adaptFile(c, "fixtures/docker/minimal.toml", tempObjects)
 	defer os.Remove(file)
 
 	cmd, display := s.traefikCmd(withConfigFile(file))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
@@ -77,8 +73,8 @@ func (s *DockerComposeSuite) TestComposeScale(c *check.C) {
 		if strings.HasSuffix(name, "@internal") {
 			continue
 		}
-		c.Assert(name, checker.Equals, composeService+"-"+composeProject+"@docker")
-		c.Assert(service.LoadBalancer.Servers, checker.HasLen, serviceCount)
+		c.Assert(name, checker.Equals, "whoami1-"+composeProject+"@docker")
+		c.Assert(service.LoadBalancer.Servers, checker.HasLen, 2)
 		// We could break here, but we don't just to keep us honest.
 	}
 }
