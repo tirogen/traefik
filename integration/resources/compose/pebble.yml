@@ -1,15 +1,17 @@
+version: "3.8"
 services:
   pebble:
     container_name: pebble
     image: letsencrypt/pebble:v2.3.1
-    command: pebble --dnsserver traefik:5053
-    ports:
-      - 14000:14000
+    command: pebble --dnsserver host.docker.internal:5053
+    extra_hosts:
+      - host.docker.internal:host-gateway
     environment:
       # https://github.com/letsencrypt/pebble#testing-at-full-speed
-      - PEBBLE_VA_NOSLEEP=1
+      PEBBLE_VA_NOSLEEP: 1
       # https://github.com/letsencrypt/pebble#invalid-anti-replay-nonce-errors
-      - PEBBLE_WFE_NONCEREJECT=0
+      PEBBLE_WFE_NONCEREJECT: 0
+
 networks:
   default:
     external: true

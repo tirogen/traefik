@@ -82,24 +82,28 @@ var traefikBinary = "../dist/traefik"
 type BaseSuite struct {
 	composeProject *types.Project
 	dockerService  composeapi.Service
+	dockerClient   *client.Client
 }
 
 func (s *BaseSuite) TearDownSuite(c *check.C) {
-	// shutdown and delete compose project
-	if s.composeProject != nil && s.dockerService != nil {
-		err := s.dockerService.Down(context.Background(), s.composeProject.Name, composeapi.DownOptions{})
-		c.Assert(err, checker.IsNil)
+	if s.composeProject == nil || s.dockerService == nil {
+		return
 	}
+
+	// shutdown and delete compose project
+	err := s.dockerService.Down(context.Background(), s.composeProject.Name, composeapi.DownOptions{})
+	c.Assert(err, checker.IsNil)
 }
 
 func (s *BaseSuite) createComposeProject(c *check.C, name string) {
 	projectName := fmt.Sprintf("integration-test-%s", name)
 	composeFile := fmt.Sprintf("resources/compose/%s.yml", name)
 
-	composeClient, err := client.NewClientWithOpts()
+	var err error
+	s.dockerClient, err = client.NewClientWithOpts()
 	c.Assert(err, checker.IsNil)
 
-	s.dockerService = compose.NewComposeService(composeClient, configfile.New(composeFile))
+	s.dockerService = compose.NewComposeService(s.dockerClient, configfile.New(composeFile))
 	ops, err := cli.NewProjectOptions([]string{composeFile}, cli.WithName(projectName))
 	c.Assert(err, checker.IsNil)
 

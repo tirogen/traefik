@@ -21,9 +21,10 @@ import (
 	checker "github.com/vdemeester/shakers"
 )
 
-// ACME test suites (using libcompose).
+// ACME test suites.
 type AcmeSuite struct {
 	BaseSuite
+	pebbleIP      string
 	fakeDNSServer *dns.Server
 }
 
@@ -54,33 +55,6 @@ const (
 	wildcardDomain = "*.acme.wtf"
 )
 
-func setupPebbleRootCA() (*http.Transport, error) {
-	path, err := filepath.Abs("fixtures/acme/ssl/pebble.minica.pem")
-	if err != nil {
-		return nil, err
-	}
-
-	os.Setenv("LEGO_CA_CERTIFICATES", path)
-	os.Setenv("LEGO_CA_SERVER_NAME", "pebble")
-
-	customCAs, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	certPool := x509.NewCertPool()
-	if ok := certPool.AppendCertsFromPEM(customCAs); !ok {
-		return nil, fmt.Errorf("error creating x509 cert pool from %q: %w", path, err)
-	}
-
-	return &http.Transport{
-		TLSClientConfig: &tls.Config{
-			ServerName: "pebble",
-			RootCAs:    certPool,
-		},
-	}, nil
-}
-
 func (s *AcmeSuite) SetUpSuite(c *check.C) {
 	s.createComposeProject(c, "pebble")
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
@@ -93,8 +67,10 @@ func (s *AcmeSuite) SetUpSuite(c *check.C) {
 		c.Fatal(err)
 	}
 
+	s.pebbleIP = s.getContainerIP(c, "pebble")
+
 	// wait for pebble
-	req := testhelpers.MustNewRequest(http.MethodGet, "https://pebble:14000/dir", nil)
+	req := testhelpers.MustNewRequest(http.MethodGet, fmt.Sprintf("https://%s:14000/dir", s.pebbleIP), nil)
 
 	client := &http.Client{
 		Transport: pebbleTransport,
@@ -115,11 +91,14 @@ func (s *AcmeSuite) TearDownSuite(c *check.C) {
 	if err != nil {
 		c.Log(err)
 	}
-	// shutdown and delete compose project
-	if s.composeProject != nil && s.dockerService != nil {
-		err := s.dockerService.Stop(context.Background(), s.composeProject, composeapi.StopOptions{})
-		c.Assert(err, checker.IsNil)
+
+	if s.composeProject == nil || s.dockerService == nil {
+		return
 	}
+
+	// shutdown and delete compose project
+	err = s.dockerService.Down(context.Background(), s.composeProject.Name, composeapi.DownOptions{})
+	c.Assert(err, checker.IsNil)
 }
 
 func (s *AcmeSuite) TestHTTP01Domains(c *check.C) {
@@ -424,7 +403,7 @@ func (s *AcmeSuite) retrieveAcmeCertificate(c *check.C, testCase acmeTestCase) {
 
 	for _, value := range testCase.template.Acme {
 		if len(value.ACME.CAServer) == 0 {
-			value.ACME.CAServer = "https://pebble:14000/dir"
+			value.ACME.CAServer = fmt.Sprintf("https://%s:14000/dir", s.pebbleIP)
 		}
 	}
 
@@ -497,4 +476,31 @@ func (s *AcmeSuite) retrieveAcmeCertificate(c *check.C, testCase acmeTestCase) {
 		c.Assert(resp.TLS.PeerCertificates[0].Subject.CommonName, checker.Equals, sub.expectedCommonName)
 		c.Assert(resp.TLS.PeerCertificates[0].PublicKeyAlgorithm, checker.Equals, sub.expectedAlgorithm)
 	}
+}
+
+func setupPebbleRootCA() (*http.Transport, error) {
+	path, err := filepath.Abs("fixtures/acme/ssl/pebble.minica.pem")
+	if err != nil {
+		return nil, err
+	}
+
+	os.Setenv("LEGO_CA_CERTIFICATES", path)
+	os.Setenv("LEGO_CA_SERVER_NAME", "pebble")
+
+	customCAs, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	certPool := x509.NewCertPool()
+	if ok := certPool.AppendCertsFromPEM(customCAs); !ok {
+		return nil, fmt.Errorf("error creating x509 cert pool from %q: %w", path, err)
+	}
+
+	return &http.Transport{
+		TLSClientConfig: &tls.Config{
+			ServerName: "pebble",
+			RootCAs:    certPool,
+		},
+	}, nil
 }
