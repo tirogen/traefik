@@ -38,6 +38,7 @@ type accessLogValue struct {
 
 func (s *AccessLogSuite) SetUpSuite(c *check.C) {
 	s.createComposeProject(c, "access_log")
+
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 }
@@ -599,9 +600,11 @@ func ensureWorkingDirectoryIsClean() {
 func checkTraefikStarted(c *check.C) []byte {
 	traefikLog, err := os.ReadFile(traefikTestLogFile)
 	c.Assert(err, checker.IsNil)
+
 	if len(traefikLog) > 0 {
 		fmt.Printf("%s\n", string(traefikLog))
 	}
+
 	return traefikLog
 }
 
@@ -633,13 +636,8 @@ func checkAccessLogExactValues(c *check.C, line string, i int, v accessLogValue)
 }
 
 func waitForTraefik(c *check.C, containerName string) {
-	time.Sleep(1 * time.Second)
-
 	// Wait for Traefik to turn ready.
-	req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:8080/api/rawdata", nil)
-	c.Assert(err, checker.IsNil)
-
-	err = try.Request(req, 2*time.Second, try.StatusCodeIs(http.StatusOK), try.BodyContains(containerName))
+	err := try.GetRequest("http://127.0.0.1:8080/api/rawdata", 2*time.Second, try.StatusCodeIs(http.StatusOK), try.BodyContains(containerName))
 	c.Assert(err, checker.IsNil)
 }
 
