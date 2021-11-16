@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,17 +25,21 @@ import (
 type EtcdSuite struct {
 	BaseSuite
 	kvClient store.Store
+	etcdAddr string
 }
 
 func (s *EtcdSuite) setupStore(c *check.C) {
 	s.createComposeProject(c, "etcd")
+
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 
+	s.etcdAddr = net.JoinHostPort(s.getContainerIP(c, "etcd"), "2379")
+
 	etcdv3.Register()
-	kv, err := valkeyrie.NewStore(
+	s.kvClient, err = valkeyrie.NewStore(
 		store.ETCDV3,
-		[]string{"etcd:2379"},
+		[]string{s.etcdAddr},
 		&store.Config{
 			ConnectionTimeout: 10 * time.Second,
 		},
@@ -42,18 +47,16 @@ func (s *EtcdSuite) setupStore(c *check.C) {
 	if err != nil {
 		c.Fatal("Cannot create store etcd")
 	}
-	s.kvClient = kv
 
 	// wait for etcd
-	err = try.Do(60*time.Second, try.KVExists(kv, "test"))
+	err = try.Do(60*time.Second, try.KVExists(s.kvClient, "test"))
 	c.Assert(err, checker.IsNil)
 }
 
 func (s *EtcdSuite) TestSimpleConfiguration(c *check.C) {
 	s.setupStore(c)
 
-	address := "etcd:2379"
-	file := s.adaptFile(c, "fixtures/etcd/simple.toml", struct{ EtcdAddress string }{address})
+	file := s.adaptFile(c, "fixtures/etcd/simple.toml", struct{ EtcdAddress string }{s.etcdAddr})
 	defer os.Remove(file)
 
 	data := map[string]string{
