@@ -1,7 +1,10 @@
+version: "3.8"
 services:
   consul:
+    container_name: consul
     image: consul:1.6
+
 networks:
   default:
-    external: true
     name: test-net
+    external: true

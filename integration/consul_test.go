@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -20,10 +21,11 @@ import (
 	checker "github.com/vdemeester/shakers"
 )
 
-// Consul test suites (using libcompose).
+// Consul test suites.
 type ConsulSuite struct {
 	BaseSuite
-	kvClient store.Store
+	kvClient   store.Store
+	consulAddr string
 }
 
 func (s *ConsulSuite) setupStore(c *check.C) {
@@ -31,10 +33,12 @@ func (s *ConsulSuite) setupStore(c *check.C) {
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 
+	s.consulAddr = net.JoinHostPort(s.getContainerIP(c, "consul"), "8500")
+
 	consul.Register()
-	kv, err := valkeyrie.NewStore(
+	s.kvClient, err = valkeyrie.NewStore(
 		store.CONSUL,
-		[]string{"consul:8500"},
+		[]string{s.consulAddr},
 		&store.Config{
 			ConnectionTimeout: 10 * time.Second,
 		},
@@ -42,18 +46,16 @@ func (s *ConsulSuite) setupStore(c *check.C) {
 	if err != nil {
 		c.Fatal("Cannot create store consul")
 	}
-	s.kvClient = kv
 
 	// wait for consul
-	err = try.Do(60*time.Second, try.KVExists(kv, "test"))
+	err = try.Do(60*time.Second, try.KVExists(s.kvClient, "test"))
 	c.Assert(err, checker.IsNil)
 }
 
 func (s *ConsulSuite) TestSimpleConfiguration(c *check.C) {
 	s.setupStore(c)
 
-	address := "http://consul:8500"
-	file := s.adaptFile(c, "fixtures/consul/simple.toml", struct{ ConsulAddress string }{address})
+	file := s.adaptFile(c, "fixtures/consul/simple.toml", struct{ ConsulAddress string }{s.consulAddr})
 	defer os.Remove(file)
 
 	data := map[string]string{
