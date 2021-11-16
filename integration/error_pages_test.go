@@ -15,24 +15,25 @@ import (
 // ErrorPagesSuite test suites.
 type ErrorPagesSuite struct {
 	BaseSuite
-	ErrorPageIP string
-	BackendIP   string
+	errorPageIP string
+	backendIP   string
 }
 
 func (s *ErrorPagesSuite) SetUpSuite(c *check.C) {
 	s.createComposeProject(c, "error_pages")
+
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 
-	s.ErrorPageIP = "nginx2"
-	s.BackendIP = "nginx1"
+	s.errorPageIP = s.getContainerIP(c, "nginx2")
+	s.backendIP = s.getContainerIP(c, "nginx1")
 }
 
 func (s *ErrorPagesSuite) TestSimpleConfiguration(c *check.C) {
 	file := s.adaptFile(c, "fixtures/error_pages/simple.toml", struct {
 		Server1 string
 		Server2 string
-	}{s.BackendIP, s.ErrorPageIP})
+	}{s.backendIP, s.errorPageIP})
 	defer os.Remove(file)
 
 	cmd, display := s.traefikCmd(withConfigFile(file))
@@ -54,7 +55,7 @@ func (s *ErrorPagesSuite) TestErrorPage(c *check.C) {
 	file := s.adaptFile(c, "fixtures/error_pages/error.toml", struct {
 		Server1 string
 		Server2 string
-	}{s.BackendIP, s.ErrorPageIP})
+	}{s.backendIP, s.errorPageIP})
 	defer os.Remove(file)
 
 	cmd, display := s.traefikCmd(withConfigFile(file))
