@@ -2,11 +2,9 @@ version: "3.8"
 services:
   nginx1:
     image: nginx:1.13.8-alpine
-    container_name: nginx1
 
   nginx2:
     image: nginx:1.13.8-alpine
-    container_name: nginx2
 
 networks:
   default:

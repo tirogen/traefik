@@ -19,6 +19,8 @@ import (
 	"github.com/docker/cli/cli/config/configfile"
 	composeapi "github.com/docker/compose/v2/pkg/api"
 	"github.com/docker/compose/v2/pkg/compose"
+	dockertypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/fatih/structs"
 	"github.com/go-check/check"
@@ -201,10 +203,19 @@ func minifyJSON(s string) string {
 }
 
 func (s *BaseSuite) getContainerIP(c *check.C, containerName string) string {
-	container, err := s.dockerClient.ContainerInspect(context.Background(), containerName)
-	c.Assert(err, checker.IsNil)
+	filter := filters.NewArgs(
+		filters.Arg("label", fmt.Sprintf("%s=%s", composeapi.ProjectLabel, s.composeProject.Name)),
+		filters.Arg("label", fmt.Sprintf("%s=%s", composeapi.ServiceLabel, containerName)),
+	)
 
-	// return container.NetworkSettings.IPAddress
-	// FIXME do something better than to use "test-net"
-	return container.NetworkSettings.Networks["test-net"].IPAddress
+	containers, err := s.dockerClient.ContainerList(context.Background(), dockertypes.ContainerListOptions{Filters: filter})
+	c.Assert(err, checker.IsNil)
+	c.Assert(containers, checker.NotNil)
+
+	networkNames := s.composeProject.NetworkNames()
+	c.Assert(networkNames, checker.HasLen, 1)
+
+	network := s.composeProject.Networks[networkNames[0]]
+
+	return containers[0].NetworkSettings.Networks[network.Name].IPAddress
 }
