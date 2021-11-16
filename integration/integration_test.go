@@ -6,7 +6,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -201,10 +200,11 @@ func minifyJSON(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, " ", ""), "\n", "")
 }
 
-func (s *BaseSuite) getServiceIP(c *check.C, service string) string {
-	ips, err := net.LookupIP(service)
+func (s *BaseSuite) getContainerIP(c *check.C, containerName string) string {
+	container, err := s.dockerClient.ContainerInspect(context.Background(), containerName)
 	c.Assert(err, checker.IsNil)
-	c.Assert(ips, checker.HasLen, 1)
 
-	return ips[0].String()
+	// return container.NetworkSettings.IPAddress
+	// FIXME do something better than to use "test-net"
+	return container.NetworkSettings.Networks["test-net"].IPAddress
 }
