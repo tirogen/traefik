@@ -26,13 +26,14 @@ type HealthCheckSuite struct {
 
 func (s *HealthCheckSuite) SetUpSuite(c *check.C) {
 	s.createComposeProject(c, "healthcheck")
+
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 
-	s.whoami1IP = s.getServiceIP(c, "whoami1")
-	s.whoami2IP = s.getServiceIP(c, "whoami2")
-	s.whoami3IP = s.getServiceIP(c, "whoami3")
-	s.whoami4IP = s.getServiceIP(c, "whoami4")
+	s.whoami1IP = s.getContainerIP(c, "whoami1")
+	s.whoami2IP = s.getContainerIP(c, "whoami2")
+	s.whoami3IP = s.getContainerIP(c, "whoami3")
+	s.whoami4IP = s.getContainerIP(c, "whoami4")
 }
 
 func (s *HealthCheckSuite) TestSimpleConfiguration(c *check.C) {
@@ -44,6 +45,7 @@ func (s *HealthCheckSuite) TestSimpleConfiguration(c *check.C) {
 
 	cmd, display := s.traefikCmd(withConfigFile(file))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
@@ -65,6 +67,7 @@ func (s *HealthCheckSuite) TestSimpleConfiguration(c *check.C) {
 	for _, whoami := range whoamiHosts {
 		statusInternalServerErrorReq, err := http.NewRequest(http.MethodPost, "http://"+whoami+"/health", bytes.NewBuffer([]byte("500")))
 		c.Assert(err, checker.IsNil)
+
 		_, err = client.Do(statusInternalServerErrorReq)
 		c.Assert(err, checker.IsNil)
 	}
@@ -76,6 +79,7 @@ func (s *HealthCheckSuite) TestSimpleConfiguration(c *check.C) {
 	// Change one whoami health to 200
 	statusOKReq1, err := http.NewRequest(http.MethodPost, "http://"+s.whoami1IP+"/health", bytes.NewBuffer([]byte("200")))
 	c.Assert(err, checker.IsNil)
+
 	_, err = client.Do(statusOKReq1)
 	c.Assert(err, checker.IsNil)
 
@@ -112,6 +116,7 @@ func (s *HealthCheckSuite) TestMultipleEntrypoints(c *check.C) {
 
 	cmd, display := s.traefikCmd(withConfigFile(file))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
@@ -142,6 +147,7 @@ func (s *HealthCheckSuite) TestMultipleEntrypoints(c *check.C) {
 	for _, whoami := range whoamiHosts {
 		statusInternalServerErrorReq, err := http.NewRequest(http.MethodPost, "http://"+whoami+"/health", bytes.NewBuffer([]byte("500")))
 		c.Assert(err, checker.IsNil)
+
 		_, err = client.Do(statusInternalServerErrorReq)
 		c.Assert(err, checker.IsNil)
 	}
@@ -153,6 +159,7 @@ func (s *HealthCheckSuite) TestMultipleEntrypoints(c *check.C) {
 	// reactivate the whoami2
 	statusInternalServerOkReq, err := http.NewRequest(http.MethodPost, "http://"+s.whoami2IP+"/health", bytes.NewBuffer([]byte("200")))
 	c.Assert(err, checker.IsNil)
+
 	_, err = client.Do(statusInternalServerOkReq)
 	c.Assert(err, checker.IsNil)
 
@@ -178,6 +185,7 @@ func (s *HealthCheckSuite) TestPortOverload(c *check.C) {
 	client := &http.Client{}
 	statusInternalServerErrorReq, err := http.NewRequest(http.MethodPost, "http://"+s.whoami1IP+"/health", bytes.NewBuffer([]byte("200")))
 	c.Assert(err, checker.IsNil)
+
 	_, err = client.Do(statusInternalServerErrorReq)
 	c.Assert(err, checker.IsNil)
 
@@ -188,6 +196,7 @@ func (s *HealthCheckSuite) TestPortOverload(c *check.C) {
 
 	cmd, display := s.traefikCmd(withConfigFile(file))
 	defer display(c)
+
 	err = cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
@@ -207,6 +216,7 @@ func (s *HealthCheckSuite) TestPortOverload(c *check.C) {
 	// Set one whoami health to 500
 	statusInternalServerErrorReq, err = http.NewRequest(http.MethodPost, "http://"+s.whoami1IP+"/health", bytes.NewBuffer([]byte("500")))
 	c.Assert(err, checker.IsNil)
+
 	_, err = client.Do(statusInternalServerErrorReq)
 	c.Assert(err, checker.IsNil)
 
@@ -224,6 +234,7 @@ func (s *HealthCheckSuite) TestMultipleRoutersOnSameService(c *check.C) {
 
 	cmd, display := s.traefikCmd(withConfigFile(file))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
@@ -236,6 +247,7 @@ func (s *HealthCheckSuite) TestMultipleRoutersOnSameService(c *check.C) {
 	client := &http.Client{}
 	statusOkReq, err := http.NewRequest(http.MethodPost, "http://"+s.whoami1IP+"/health", bytes.NewBuffer([]byte("200")))
 	c.Assert(err, checker.IsNil)
+
 	_, err = client.Do(statusOkReq)
 	c.Assert(err, checker.IsNil)
 
@@ -243,6 +255,7 @@ func (s *HealthCheckSuite) TestMultipleRoutersOnSameService(c *check.C) {
 	healthReqWeb1, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:8000/health", nil)
 	c.Assert(err, checker.IsNil)
 	healthReqWeb1.Host = "test.localhost"
+
 	err = try.Request(healthReqWeb1, 1*time.Second, try.StatusCodeIs(http.StatusOK))
 	c.Assert(err, checker.IsNil)
 
@@ -257,6 +270,7 @@ func (s *HealthCheckSuite) TestMultipleRoutersOnSameService(c *check.C) {
 	// Set whoami health to 500
 	statusInternalServerErrorReq, err := http.NewRequest(http.MethodPost, "http://"+s.whoami1IP+"/health", bytes.NewBuffer([]byte("500")))
 	c.Assert(err, checker.IsNil)
+
 	_, err = client.Do(statusInternalServerErrorReq)
 	c.Assert(err, checker.IsNil)
 
@@ -270,6 +284,7 @@ func (s *HealthCheckSuite) TestMultipleRoutersOnSameService(c *check.C) {
 	// Change one whoami health to 200
 	statusOKReq1, err := http.NewRequest(http.MethodPost, "http://"+s.whoami1IP+"/health", bytes.NewBuffer([]byte("200")))
 	c.Assert(err, checker.IsNil)
+
 	_, err = client.Do(statusOKReq1)
 	c.Assert(err, checker.IsNil)
 
@@ -292,6 +307,7 @@ func (s *HealthCheckSuite) TestPropagate(c *check.C) {
 
 	cmd, display := s.traefikCmd(withConfigFile(file))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
@@ -316,6 +332,7 @@ func (s *HealthCheckSuite) TestPropagate(c *check.C) {
 	for _, whoami := range whoamiHosts {
 		statusInternalServerErrorReq, err := http.NewRequest(http.MethodPost, "http://"+whoami+"/health", bytes.NewBuffer([]byte("500")))
 		c.Assert(err, checker.IsNil)
+
 		_, err = client.Do(statusInternalServerErrorReq)
 		c.Assert(err, checker.IsNil)
 	}
@@ -377,6 +394,7 @@ func (s *HealthCheckSuite) TestPropagate(c *check.C) {
 	for _, whoami := range whoamiHosts {
 		statusInternalServerErrorReq, err := http.NewRequest(http.MethodPost, "http://"+whoami+"/health", bytes.NewBuffer([]byte("500")))
 		c.Assert(err, checker.IsNil)
+
 		_, err = client.Do(statusInternalServerErrorReq)
 		c.Assert(err, checker.IsNil)
 	}
@@ -403,6 +421,7 @@ func (s *HealthCheckSuite) TestPropagate(c *check.C) {
 	for _, whoami := range whoamiHosts {
 		statusOKReq, err := http.NewRequest(http.MethodPost, "http://"+whoami+"/health", bytes.NewBuffer([]byte("200")))
 		c.Assert(err, checker.IsNil)
+
 		_, err = client.Do(statusOKReq)
 		c.Assert(err, checker.IsNil)
 	}
@@ -457,6 +476,7 @@ func (s *HealthCheckSuite) TestPropagateNoHealthCheck(c *check.C) {
 
 	cmd, display := s.traefikCmd(withConfigFile(file))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
@@ -480,6 +500,7 @@ func (s *HealthCheckSuite) TestPropagateReload(c *check.C) {
 		Server2 string
 	}{s.whoami1IP, s.whoami2IP})
 	defer os.Remove(withoutHealthCheck)
+
 	withHealthCheck := s.adaptFile(c, "fixtures/healthcheck/reload_with_healthcheck.toml", struct {
 		Server1 string
 		Server2 string
@@ -488,6 +509,7 @@ func (s *HealthCheckSuite) TestPropagateReload(c *check.C) {
 
 	cmd, display := s.traefikCmd(withConfigFile(withoutHealthCheck))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
@@ -502,6 +524,7 @@ func (s *HealthCheckSuite) TestPropagateReload(c *check.C) {
 	}
 	statusOKReq, err := http.NewRequest(http.MethodPost, "http://"+s.whoami2IP+"/health", bytes.NewBuffer([]byte("500")))
 	c.Assert(err, checker.IsNil)
+
 	_, err = client.Do(statusOKReq)
 	c.Assert(err, checker.IsNil)
 
@@ -517,13 +540,16 @@ func (s *HealthCheckSuite) TestPropagateReload(c *check.C) {
 	fr1, err := os.OpenFile(withoutHealthCheck, os.O_APPEND|os.O_WRONLY, 0o644)
 	c.Assert(fr1, checker.NotNil)
 	c.Assert(err, checker.IsNil)
+
 	err = fr1.Truncate(0)
 	c.Assert(err, checker.IsNil)
 
 	fr2, err := os.ReadFile(withHealthCheck)
 	c.Assert(err, checker.IsNil)
+
 	_, err = fmt.Fprint(fr1, string(fr2))
 	c.Assert(err, checker.IsNil)
+
 	err = fr1.Close()
 	c.Assert(err, checker.IsNil)
 
