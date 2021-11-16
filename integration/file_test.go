@@ -1,12 +1,10 @@
 package integration
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"time"
 
-	composeapi "github.com/docker/compose/v2/pkg/api"
 	"github.com/go-check/check"
 	"github.com/traefik/traefik/v2/integration/try"
 	checker "github.com/vdemeester/shakers"
@@ -15,17 +13,13 @@ import (
 // File tests suite.
 type FileSuite struct{ BaseSuite }
 
-func (s *FileSuite) SetUpSuite(c *check.C) {
-	s.createComposeProject(c, "file")
-	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
-	c.Assert(err, checker.IsNil)
-}
-
 func (s *FileSuite) TestSimpleConfiguration(c *check.C) {
 	file := s.adaptFile(c, "fixtures/file/simple.toml", struct{}{})
 	defer os.Remove(file)
+
 	cmd, display := s.traefikCmd(withConfigFile(file))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
@@ -39,6 +33,7 @@ func (s *FileSuite) TestSimpleConfiguration(c *check.C) {
 func (s *FileSuite) TestSimpleConfigurationNoPanic(c *check.C) {
 	cmd, display := s.traefikCmd(withConfigFile("fixtures/file/56-simple-panic.toml"))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
