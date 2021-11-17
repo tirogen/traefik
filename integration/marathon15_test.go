@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -13,7 +14,7 @@ import (
 	checker "github.com/vdemeester/shakers"
 )
 
-// Marathon test suites (using libcompose).
+// Marathon test suites.
 type MarathonSuite15 struct {
 	BaseSuite
 	marathonURL string
@@ -21,10 +22,11 @@ type MarathonSuite15 struct {
 
 func (s *MarathonSuite15) SetUpSuite(c *check.C) {
 	s.createComposeProject(c, "marathon15")
+
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 
-	s.marathonURL = "http://" + containerNameMarathon + ":8080"
+	s.marathonURL = "http://" + net.JoinHostPort(s.getContainerIP(c, containerNameMarathon), "8080")
 
 	// Wait for Marathon readiness prior to creating the client so that we
 	// don't run into the "all cluster members down" state right from the
@@ -39,8 +41,10 @@ func (s *MarathonSuite15) TestConfigurationUpdate(c *check.C) {
 		MarathonURL string
 	}{s.marathonURL})
 	defer os.Remove(file)
+
 	cmd, display := s.traefikCmd(withConfigFile(file))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
@@ -52,6 +56,7 @@ func (s *MarathonSuite15) TestConfigurationUpdate(c *check.C) {
 	// Prepare Marathon client.
 	config := marathon.NewDefaultConfig()
 	config.URL = s.marathonURL
+
 	client, err := marathon.NewClient(config)
 	c.Assert(err, checker.IsNil)
 
@@ -62,10 +67,12 @@ func (s *MarathonSuite15) TestConfigurationUpdate(c *check.C) {
 		Memory(32).
 		EmptyNetworks().
 		AddLabel("traefik.http.Routers.rt.Rule", "PathPrefix(`/service`)")
+
 	app.Container.
 		Expose(80).
 		Docker.
 		Container("traefik/whoami")
+
 	*app.Networks = append(*app.Networks, *marathon.NewBridgePodNetwork())
 
 	// Deploy the test application.
@@ -82,10 +89,12 @@ func (s *MarathonSuite15) TestConfigurationUpdate(c *check.C) {
 		Memory(32).
 		EmptyNetworks().
 		AddLabel("traefik.http.Routers.app.Rule", "PathPrefix(`/app`)")
+
 	app.Container.
 		Expose(80).
 		Docker.
 		Container("traefik/whoami")
+
 	*app.Networks = append(*app.Networks, *marathon.NewBridgePodNetwork())
 
 	// Deploy the test application.

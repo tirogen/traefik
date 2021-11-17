@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -17,7 +18,7 @@ const (
 	containerNameMarathon = "marathon"
 )
 
-// Marathon test suites (using libcompose).
+// Marathon test suites.
 type MarathonSuite struct {
 	BaseSuite
 	marathonURL string
@@ -25,10 +26,11 @@ type MarathonSuite struct {
 
 func (s *MarathonSuite) SetUpSuite(c *check.C) {
 	s.createComposeProject(c, "marathon")
+
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 
-	s.marathonURL = "http://" + containerNameMarathon + ":8080"
+	s.marathonURL = "http://" + net.JoinHostPort(s.getContainerIP(c, containerNameMarathon), "8080")
 
 	// Wait for Marathon readiness prior to creating the client so that we
 	// don't run into the "all cluster members down" state right from the
@@ -72,6 +74,7 @@ func (s *MarathonSuite) TestConfigurationUpdate(c *check.C) {
 		CPU(0.1).
 		Memory(32).
 		AddLabel("traefik.http.Routers.rt.Rule", "PathPrefix(`/service`)")
+
 	app.Container.Docker.Bridged().
 		Expose(80).
 		Container("traefik/whoami")
@@ -89,6 +92,7 @@ func (s *MarathonSuite) TestConfigurationUpdate(c *check.C) {
 		CPU(0.1).
 		Memory(32).
 		AddLabel("traefik.http.Routers.app.Rule", "PathPrefix(`/app`)")
+
 	app.Container.Docker.Bridged().
 		Expose(80).
 		Container("traefik/whoami")
