@@ -6,5 +6,5 @@ services:
 
 networks:
   default:
-    external: true
     name: test-net
+    external: true

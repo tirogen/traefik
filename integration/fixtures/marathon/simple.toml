@@ -16,6 +16,6 @@
 
 [providers]
   [providers.marathon]
-    endpoint = "{{.MarathonURL}}"
+    endpoint = "{{ .MarathonURL }}"
     watch = true
     exposedByDefault = true

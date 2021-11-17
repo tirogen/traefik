@@ -23,6 +23,7 @@ type LogRotationSuite struct{ BaseSuite }
 
 func (s *LogRotationSuite) SetUpSuite(c *check.C) {
 	s.createComposeProject(c, "access_log")
+
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 }

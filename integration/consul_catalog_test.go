@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -18,7 +19,7 @@ type ConsulCatalogSuite struct {
 	BaseSuite
 	consulClient      *api.Client
 	consulAgentClient *api.Client
-	consulAddress     string
+	consulURL         string
 }
 
 func (s *ConsulCatalogSuite) SetUpSuite(c *check.C) {
@@ -27,9 +28,9 @@ func (s *ConsulCatalogSuite) SetUpSuite(c *check.C) {
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 
-	s.consulAddress = fmt.Sprintf("http://%s:8500", s.getContainerIP(c, "consul"))
+	s.consulURL = "http://" + net.JoinHostPort(s.getContainerIP(c, "consul"), "8500")
 	s.consulClient, err = api.NewClient(&api.Config{
-		Address: s.consulAddress,
+		Address: s.consulURL,
 	})
 	c.Check(err, check.IsNil)
 
@@ -37,8 +38,8 @@ func (s *ConsulCatalogSuite) SetUpSuite(c *check.C) {
 	err = s.waitToElectConsulLeader()
 	c.Assert(err, checker.IsNil)
 
-	consulAgentAddress := fmt.Sprintf("http://%s:8500", s.getContainerIP(c, "consul-agent"))
-	s.consulAgentClient, err = api.NewClient(&api.Config{Address: consulAgentAddress})
+	consulAgentURL := "http://" + net.JoinHostPort(s.getContainerIP(c, "consul-agent"), "8500")
+	s.consulAgentClient, err = api.NewClient(&api.Config{Address: consulAgentURL})
 	c.Check(err, check.IsNil)
 }
 
@@ -117,7 +118,7 @@ func (s *ConsulCatalogSuite) TestWithNotExposedByDefaultAndDefaultsSettings(c *c
 	tempObjects := struct {
 		ConsulAddress string
 	}{
-		ConsulAddress: s.consulAddress,
+		ConsulAddress: s.consulURL,
 	}
 
 	file := s.adaptFile(c, "fixtures/consul_catalog/default_not_exposed.toml", tempObjects)
@@ -176,7 +177,7 @@ func (s *ConsulCatalogSuite) TestByLabels(c *check.C) {
 	tempObjects := struct {
 		ConsulAddress string
 	}{
-		ConsulAddress: s.consulAddress,
+		ConsulAddress: s.consulURL,
 	}
 
 	file := s.adaptFile(c, "fixtures/consul_catalog/default_not_exposed.toml", tempObjects)
@@ -203,7 +204,7 @@ func (s *ConsulCatalogSuite) TestSimpleConfiguration(c *check.C) {
 		ConsulAddress string
 		DefaultRule   string
 	}{
-		ConsulAddress: s.consulAddress,
+		ConsulAddress: s.consulURL,
 		DefaultRule:   "Host(`{{ normalize .Name }}.consul.localhost`)",
 	}
 
@@ -242,7 +243,7 @@ func (s *ConsulCatalogSuite) TestRegisterServiceWithoutIP(c *check.C) {
 		ConsulAddress string
 		DefaultRule   string
 	}{
-		ConsulAddress: s.consulAddress,
+		ConsulAddress: s.consulURL,
 		DefaultRule:   "Host(`{{ normalize .Name }}.consul.localhost`)",
 	}
 
@@ -281,7 +282,7 @@ func (s *ConsulCatalogSuite) TestDefaultConsulService(c *check.C) {
 		DefaultRule   string
 	}{
 
-		ConsulAddress: s.consulAddress,
+		ConsulAddress: s.consulURL,
 		DefaultRule:   "Host(`{{ normalize .Name }}.consul.localhost`)",
 	}
 
@@ -320,7 +321,7 @@ func (s *ConsulCatalogSuite) TestConsulServiceWithTCPLabels(c *check.C) {
 		ConsulAddress string
 		DefaultRule   string
 	}{
-		ConsulAddress: s.consulAddress,
+		ConsulAddress: s.consulURL,
 		DefaultRule:   "Host(`{{ normalize .Name }}.consul.localhost`)",
 	}
 
@@ -367,7 +368,7 @@ func (s *ConsulCatalogSuite) TestConsulServiceWithLabels(c *check.C) {
 		ConsulAddress string
 		DefaultRule   string
 	}{
-		ConsulAddress: s.consulAddress,
+		ConsulAddress: s.consulURL,
 		DefaultRule:   "Host(`{{ normalize .Name }}.consul.localhost`)",
 	}
 
@@ -434,7 +435,7 @@ func (s *ConsulCatalogSuite) TestSameServiceIDOnDifferentConsulAgent(c *check.C)
 		ConsulAddress string
 		DefaultRule   string
 	}{
-		ConsulAddress: s.consulAddress,
+		ConsulAddress: s.consulURL,
 		DefaultRule:   "Host(`{{ normalize .Name }}.consul.localhost`)",
 	}
 
@@ -501,7 +502,7 @@ func (s *ConsulCatalogSuite) TestConsulServiceWithOneMissingLabels(c *check.C) {
 		ConsulAddress string
 		DefaultRule   string
 	}{
-		ConsulAddress: s.consulAddress,
+		ConsulAddress: s.consulURL,
 		DefaultRule:   "Host(`{{ normalize .Name }}.consul.localhost`)",
 	}
 
@@ -569,7 +570,7 @@ func (s *ConsulCatalogSuite) TestConsulServiceWithHealthCheck(c *check.C) {
 	tempObjects := struct {
 		ConsulAddress string
 	}{
-		ConsulAddress: s.consulAddress,
+		ConsulAddress: s.consulURL,
 	}
 
 	file := s.adaptFile(c, "fixtures/consul_catalog/simple.toml", tempObjects)
@@ -662,7 +663,7 @@ func (s *ConsulCatalogSuite) TestConsulConnect(c *check.C) {
 	tempObjects := struct {
 		ConsulAddress string
 	}{
-		ConsulAddress: s.consulAddress,
+		ConsulAddress: s.consulURL,
 	}
 	file := s.adaptFile(c, "fixtures/consul_catalog/connect.toml", tempObjects)
 	defer os.Remove(file)
@@ -743,7 +744,7 @@ func (s *ConsulCatalogSuite) TestConsulConnect_ByDefault(c *check.C) {
 	tempObjects := struct {
 		ConsulAddress string
 	}{
-		ConsulAddress: s.consulAddress,
+		ConsulAddress: s.consulURL,
 	}
 	file := s.adaptFile(c, "fixtures/consul_catalog/connect_by_default.toml", tempObjects)
 	defer os.Remove(file)
@@ -814,7 +815,7 @@ func (s *ConsulCatalogSuite) TestConsulConnect_NotAware(c *check.C) {
 	tempObjects := struct {
 		ConsulAddress string
 	}{
-		ConsulAddress: s.consulAddress,
+		ConsulAddress: s.consulURL,
 	}
 	file := s.adaptFile(c, "fixtures/consul_catalog/connect_not_aware.toml", tempObjects)
 	defer os.Remove(file)

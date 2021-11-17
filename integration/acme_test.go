@@ -92,13 +92,7 @@ func (s *AcmeSuite) TearDownSuite(c *check.C) {
 		c.Log(err)
 	}
 
-	if s.composeProject == nil || s.dockerService == nil {
-		return
-	}
-
-	// shutdown and delete compose project
-	err = s.dockerService.Down(context.Background(), s.composeProject.Name, composeapi.DownOptions{})
-	c.Assert(err, checker.IsNil)
+	s.composeDown(c)
 }
 
 func (s *AcmeSuite) TestHTTP01Domains(c *check.C) {

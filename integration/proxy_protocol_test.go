@@ -12,100 +12,102 @@ import (
 	checker "github.com/vdemeester/shakers"
 )
 
-type ProxyProtocolSuite struct{ BaseSuite }
+type ProxyProtocolSuite struct {
+	BaseSuite
+	gatewayIP string
+	haproxyIP string
+	whoamiIP  string
+}
 
 func (s *ProxyProtocolSuite) SetUpSuite(c *check.C) {
 	s.createComposeProject(c, "proxy-protocol")
+
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
+
+	s.gatewayIP = s.getContainerGatewayIP(c, "haproxy")
+
+	s.haproxyIP = s.getContainerIP(c, "haproxy")
+	s.whoamiIP = s.getContainerIP(c, "whoami")
 }
 
 func (s *ProxyProtocolSuite) TestProxyProtocolTrusted(c *check.C) {
-	gatewayHost := s.getServiceIP(c, "traefik")
-	haproxyHost := s.getServiceIP(c, "haproxy")
-	whoamiHost := s.getServiceIP(c, "whoami")
-
 	file := s.adaptFile(c, "fixtures/proxy-protocol/with.toml", struct {
 		HaproxyIP string
 		WhoamiIP  string
-	}{HaproxyIP: haproxyHost, WhoamiIP: whoamiHost})
+	}{HaproxyIP: s.haproxyIP, WhoamiIP: s.whoamiIP})
 	defer os.Remove(file)
 
 	cmd, display := s.traefikCmd(withConfigFile(file))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
 
-	err = try.GetRequest("http://"+haproxyHost+"/whoami", 1*time.Second,
+	err = try.GetRequest("http://"+s.haproxyIP+"/whoami", 1*time.Second,
 		try.StatusCodeIs(http.StatusOK),
-		try.BodyContains("X-Forwarded-For: "+gatewayHost))
+		try.BodyContains("X-Forwarded-For: "+s.gatewayIP))
 	c.Assert(err, checker.IsNil)
 }
 
 func (s *ProxyProtocolSuite) TestProxyProtocolV2Trusted(c *check.C) {
-	gatewayHost := s.getServiceIP(c, "traefik")
-	haproxyHost := s.getServiceIP(c, "haproxy")
-	whoamiHost := s.getServiceIP(c, "whoami")
-
 	file := s.adaptFile(c, "fixtures/proxy-protocol/with.toml", struct {
 		HaproxyIP string
 		WhoamiIP  string
-	}{HaproxyIP: haproxyHost, WhoamiIP: whoamiHost})
+	}{HaproxyIP: s.haproxyIP, WhoamiIP: s.whoamiIP})
 	defer os.Remove(file)
 
 	cmd, display := s.traefikCmd(withConfigFile(file))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
 
-	err = try.GetRequest("http://"+haproxyHost+":81/whoami", 1*time.Second,
+	err = try.GetRequest("http://"+s.haproxyIP+":81/whoami", 1*time.Second,
 		try.StatusCodeIs(http.StatusOK),
-		try.BodyContains("X-Forwarded-For: "+gatewayHost))
+		try.BodyContains("X-Forwarded-For: "+s.gatewayIP))
 	c.Assert(err, checker.IsNil)
 }
 
 func (s *ProxyProtocolSuite) TestProxyProtocolNotTrusted(c *check.C) {
-	haproxyHost := s.getServiceIP(c, "haproxy")
-	whoamiHost := s.getServiceIP(c, "whoami")
-
 	file := s.adaptFile(c, "fixtures/proxy-protocol/without.toml", struct {
 		HaproxyIP string
 		WhoamiIP  string
-	}{HaproxyIP: haproxyHost, WhoamiIP: whoamiHost})
+	}{HaproxyIP: s.haproxyIP, WhoamiIP: s.whoamiIP})
 	defer os.Remove(file)
 
 	cmd, display := s.traefikCmd(withConfigFile(file))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
 
-	err = try.GetRequest("http://"+haproxyHost+"/whoami", 1*time.Second,
+	time.Sleep(time.Hour)
+	err = try.GetRequest("http://"+s.haproxyIP+"/whoami", 1*time.Second,
 		try.StatusCodeIs(http.StatusOK),
-		try.BodyContains("X-Forwarded-For: "+haproxyHost))
+		try.BodyContains("X-Forwarded-For: "+s.haproxyIP))
 	c.Assert(err, checker.IsNil)
 }
 
 func (s *ProxyProtocolSuite) TestProxyProtocolV2NotTrusted(c *check.C) {
-	haproxyHost := s.getServiceIP(c, "haproxy")
-	whoamiHost := s.getServiceIP(c, "whoami")
-
 	file := s.adaptFile(c, "fixtures/proxy-protocol/without.toml", struct {
 		HaproxyIP string
 		WhoamiIP  string
-	}{HaproxyIP: haproxyHost, WhoamiIP: whoamiHost})
+	}{HaproxyIP: s.haproxyIP, WhoamiIP: s.whoamiIP})
 	defer os.Remove(file)
 
 	cmd, display := s.traefikCmd(withConfigFile(file))
 	defer display(c)
+
 	err := cmd.Start()
 	c.Assert(err, checker.IsNil)
 	defer s.killCmd(cmd)
 
-	err = try.GetRequest("http://"+haproxyHost+":81/whoami", 1*time.Second,
+	err = try.GetRequest("http://"+s.haproxyIP+":81/whoami", 1*time.Second,
 		try.StatusCodeIs(http.StatusOK),
-		try.BodyContains("X-Forwarded-For: "+haproxyHost))
+		try.BodyContains("X-Forwarded-For: "+s.haproxyIP))
 	c.Assert(err, checker.IsNil)
 }

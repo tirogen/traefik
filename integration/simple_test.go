@@ -388,8 +388,8 @@ func (s *SimpleSuite) TestMultipleProviderSameBackendName(c *check.C) {
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 
-	ipWhoami01 := s.getServiceIP(c, "whoami1")
-	ipWhoami02 := s.getServiceIP(c, "whoami2")
+	ipWhoami01 := s.getContainerIP(c, "whoami1")
+	ipWhoami02 := s.getContainerIP(c, "whoami2")
 	file := s.adaptFile(c, "fixtures/multiple_provider.toml", struct{ IP string }{
 		IP: ipWhoami02,
 	})
@@ -760,8 +760,8 @@ func (s *SimpleSuite) TestWRR(c *check.C) {
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 
-	server1 := s.getServiceIP(c, "whoami1")
-	server2 := s.getServiceIP(c, "whoami2")
+	server1 := s.getContainerIP(c, "whoami1")
+	server2 := s.getContainerIP(c, "whoami2")
 
 	file := s.adaptFile(c, "fixtures/wrr.toml", struct {
 		Server1 string
@@ -811,8 +811,8 @@ func (s *SimpleSuite) TestWRRSticky(c *check.C) {
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 
-	server1 := s.getServiceIP(c, "whoami1")
-	server2 := s.getServiceIP(c, "whoami2")
+	server1 := s.getContainerIP(c, "whoami1")
+	server2 := s.getContainerIP(c, "whoami2")
 
 	file := s.adaptFile(c, "fixtures/wrr_sticky.toml", struct {
 		Server1 string

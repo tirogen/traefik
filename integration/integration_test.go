@@ -70,7 +70,7 @@ func Test(t *testing.T) {
 	check.Suite(&UDPSuite{})
 	check.Suite(&WebsocketSuite{})
 	check.Suite(&ZookeeperSuite{})
-
+	// FIXME add and sort
 	check.Suite(&K8sSuite{})
 	check.Suite(&ProxyProtocolSuite{})
 	check.Suite(&TCPSuite{})
@@ -87,13 +87,7 @@ type BaseSuite struct {
 }
 
 func (s *BaseSuite) TearDownSuite(c *check.C) {
-	if s.composeProject == nil || s.dockerService == nil {
-		return
-	}
-
-	// shutdown and delete compose project
-	err := s.dockerService.Down(context.Background(), s.composeProject.Name, composeapi.DownOptions{})
-	c.Assert(err, checker.IsNil)
+	s.composeDown(c)
 }
 
 func (s *BaseSuite) createComposeProject(c *check.C, name string) {
@@ -139,6 +133,7 @@ func (s *BaseSuite) traefikCmd(args ...string) (*exec.Cmd, func(*check.C)) {
 	return cmd, func(c *check.C) {
 		if c.Failed() || *showLog {
 			s.displayLogK3S(c)
+			s.displayComposeLogs(c)
 			s.displayTraefikLog(c, out)
 		}
 	}
@@ -153,6 +148,14 @@ func (s *BaseSuite) displayLogK3S(c *check.C) {
 		}
 		log.WithoutContext().Println(string(content))
 	}
+	log.WithoutContext().Println()
+	log.WithoutContext().Println("################################")
+	log.WithoutContext().Println()
+}
+
+func (s *BaseSuite) displayComposeLogs(c *check.C) {
+	// err := s.dockerService.Logs(context.Background(), s.composeProject.Name, composeapi.LogConsumer(), composeapi.LogOptions{})
+	// c.Assert(err, checker.IsNil)
 	log.WithoutContext().Println()
 	log.WithoutContext().Println("################################")
 	log.WithoutContext().Println()
@@ -198,10 +201,6 @@ func (s *BaseSuite) adaptFile(c *check.C, path string, tempObjects interface{}) 
 	return tmpFile.Name()
 }
 
-func minifyJSON(s string) string {
-	return strings.ReplaceAll(strings.ReplaceAll(s, " ", ""), "\n", "")
-}
-
 func (s *BaseSuite) getContainerIP(c *check.C, containerName string) string {
 	filter := filters.NewArgs(
 		filters.Arg("label", fmt.Sprintf("%s=%s", composeapi.ProjectLabel, s.composeProject.Name)),
@@ -210,12 +209,58 @@ func (s *BaseSuite) getContainerIP(c *check.C, containerName string) string {
 
 	containers, err := s.dockerClient.ContainerList(context.Background(), dockertypes.ContainerListOptions{Filters: filter})
 	c.Assert(err, checker.IsNil)
-	c.Assert(containers, checker.NotNil)
+	if len(containers) == 0 {
+		return ""
+	}
 
 	networkNames := s.composeProject.NetworkNames()
 	c.Assert(networkNames, checker.HasLen, 1)
 
 	network := s.composeProject.Networks[networkNames[0]]
 
-	return containers[0].NetworkSettings.Networks[network.Name].IPAddress
+	ipAddr := containers[0].NetworkSettings.Networks[network.Name].IPAddress
+
+	c.Logf("%q -> %q", containerName, ipAddr)
+
+	return ipAddr
+}
+
+func (s *BaseSuite) getContainerGatewayIP(c *check.C, containerName string) string {
+	filter := filters.NewArgs(
+		filters.Arg("label", fmt.Sprintf("%s=%s", composeapi.ProjectLabel, s.composeProject.Name)),
+		filters.Arg("label", fmt.Sprintf("%s=%s", composeapi.ServiceLabel, containerName)),
+	)
+
+	containers, err := s.dockerClient.ContainerList(context.Background(), dockertypes.ContainerListOptions{Filters: filter})
+	c.Assert(err, checker.IsNil)
+	if len(containers) == 0 {
+		return ""
+	}
+
+	networkNames := s.composeProject.NetworkNames()
+	c.Assert(networkNames, checker.HasLen, 1)
+
+	network := s.composeProject.Networks[networkNames[0]]
+
+	ipAddr := containers[0].NetworkSettings.Networks[network.Name].Gateway
+
+	c.Logf("%q -> %q", containerName, ipAddr)
+
+	return ipAddr
+}
+
+func (s *BaseSuite) composeDown(c *check.C) {
+	c.Log("Cleaning up compose")
+	if s.composeProject == nil || s.dockerService == nil {
+		c.Log("Compose project or docker service not started, ignoring...")
+		return
+	}
+
+	// shutdown and delete compose project
+	err := s.dockerService.Down(context.Background(), s.composeProject.Name, composeapi.DownOptions{})
+	c.Assert(err, checker.IsNil)
+}
+
+func minifyJSON(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, " ", ""), "\n", "")
 }

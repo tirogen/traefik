@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -29,29 +30,47 @@ type K8sSuite struct{ BaseSuite }
 
 func (s *K8sSuite) SetUpSuite(c *check.C) {
 	s.createComposeProject(c, "k8s")
+
 	err := s.dockerService.Up(context.Background(), s.composeProject, composeapi.UpOptions{})
 	c.Assert(err, checker.IsNil)
 
-	abs := "/test/config/kubeconfig.yaml"
+	abs, err := filepath.Abs("./fixtures/k8s/config.skip/kubeconfig.yaml")
+	c.Assert(err, checker.IsNil)
 
-	err = try.Do(120*time.Second, func() error {
+	time.Sleep(time.Hour)
+
+	err = try.Do(60*time.Second, func() error {
 		_, err := os.Stat(abs)
 		return err
 	})
-	c.Assert(err, checker.IsNil)
+	if err != nil {
+		content, errr := ioutil.ReadFile("./fixtures/k8s/config.skip/k3s.log")
+		c.Assert(errr, check.IsNil)
+		c.Log(string(content))
+		c.Assert(err, checker.IsNil)
+	}
 
 	err = os.Setenv("KUBECONFIG", abs)
 	c.Assert(err, checker.IsNil)
-
-	// allow time for k8s resources to be created
-	time.Sleep(1 * time.Minute)
 }
 
 func (s *K8sSuite) TearDownSuite(c *check.C) {
-	// shutdown and delete compose project
-	if s.composeProject != nil && s.dockerService != nil {
-		err := s.dockerService.Down(context.Background(), s.composeProject.Name, composeapi.DownOptions{})
-		c.Assert(err, checker.IsNil)
+	s.composeDown(c)
+
+	generatedFiles := []string{
+		"./fixtures/k8s/config.skip/kubeconfig.yaml",
+		"./fixtures/k8s/config.skip/k3s.log",
+		"./fixtures/k8s/coredns.yaml",
+		"./fixtures/k8s/rolebindings.yaml",
+		"./fixtures/k8s/traefik.yaml",
+		"./fixtures/k8s/ccm.yaml",
+	}
+
+	for _, filename := range generatedFiles {
+		err := os.Remove(filename)
+		if err != nil {
+			c.Log(err)
+		}
 	}
 }
 
@@ -135,7 +154,7 @@ func testConfiguration(c *check.C, path, apiPort string) {
 	}
 
 	var buf bytes.Buffer
-	err = try.GetRequest("http://127.0.0.1:"+apiPort+"/api/rawdata", 20*time.Second, try.StatusCodeIs(http.StatusOK), matchesConfig(expectedJSON, &buf))
+	err = try.GetRequest("http://127.0.0.1:"+apiPort+"/api/rawdata", 1*time.Minute, try.StatusCodeIs(http.StatusOK), matchesConfig(expectedJSON, &buf))
 
 	if !*updateExpected {
 		if err != nil {

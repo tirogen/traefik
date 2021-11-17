@@ -41,8 +41,7 @@ blocks:
           commands:
             - make pull-images
             - mkdir -p webui/static && touch webui/static/index.html # Avoid generating webui
-            - PRE_TARGET="" make binary
-            - make test-integration
+            - PRE_TARGET="" make test-integration
             - df -h
       epilogue:
         always:

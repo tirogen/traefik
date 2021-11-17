@@ -49,14 +49,6 @@ func (s *RedisSuite) setupStore(c *check.C) {
 	c.Assert(err, checker.IsNil)
 }
 
-func (s *RedisSuite) TearDownTest(c *check.C) {
-	// shutdown and delete compose project
-	if s.composeProject != nil && s.dockerService != nil {
-		err := s.dockerService.Stop(context.Background(), s.composeProject, composeapi.StopOptions{})
-		c.Assert(err, checker.IsNil)
-	}
-}
-
 func (s *RedisSuite) TestSimpleConfiguration(c *check.C) {
 	s.setupStore(c)
 
