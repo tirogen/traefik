@@ -18,6 +18,7 @@ import (
 	"github.com/compose-spec/compose-go/cli"
 	"github.com/compose-spec/compose-go/types"
 	"github.com/docker/cli/cli/config/configfile"
+	"github.com/docker/compose/v2/cmd/formatter"
 	composeapi "github.com/docker/compose/v2/pkg/api"
 	"github.com/docker/compose/v2/pkg/compose"
 	"github.com/docker/docker/client"
@@ -134,6 +135,7 @@ func (s *BaseSuite) traefikCmd(args ...string) (*exec.Cmd, func(*check.C)) {
 	return cmd, func(c *check.C) {
 		if c.Failed() || *showLog {
 			s.displayLogK3S(c)
+			s.displayLogCompose(c)
 			s.displayTraefikLog(c, out)
 		}
 	}
@@ -148,6 +150,18 @@ func (s *BaseSuite) displayLogK3S(c *check.C) {
 		}
 		log.WithoutContext().Println(string(content))
 	}
+	log.WithoutContext().Println()
+	log.WithoutContext().Println("################################")
+	log.WithoutContext().Println()
+}
+
+func (s *BaseSuite) displayLogCompose(c *check.C) {
+	log.WithoutContext().Infof("%s: docker compose logs: ", c.TestName())
+
+	logConsumer := formatter.NewLogConsumer(context.Background(), os.Stdout, true, true)
+	err := s.dockerService.Logs(context.Background(), s.composeProject.Name, logConsumer, composeapi.LogOptions{})
+	c.Assert(err, checker.IsNil)
+
 	log.WithoutContext().Println()
 	log.WithoutContext().Println("################################")
 	log.WithoutContext().Println()
@@ -193,14 +207,14 @@ func (s *BaseSuite) adaptFile(c *check.C, path string, tempObjects interface{}) 
 	return tmpFile.Name()
 }
 
-func minifyJSON(s string) string {
-	return strings.ReplaceAll(strings.ReplaceAll(s, " ", ""), "\n", "")
-}
-
 func (s *BaseSuite) getServiceIP(c *check.C, service string) string {
 	ips, err := net.LookupIP(service)
 	c.Assert(err, checker.IsNil)
 	c.Assert(ips, checker.HasLen, 1)
 
 	return ips[0].String()
+}
+
+func minifyJSON(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, " ", ""), "\n", "")
 }
