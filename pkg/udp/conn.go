@@ -37,7 +37,7 @@ type Listener struct {
 	pConn *net.UDPConn
 
 	mu    sync.RWMutex
-	conns map[string]*Conn
+	conns map[string][]*Conn
 	// accepting signifies whether the listener is still accepting new sessions.
 	// It also serves as a sentinel for Shutdown to be idempotent.
 	accepting bool
@@ -62,7 +62,7 @@ func Listen(network string, laddr *net.UDPAddr, session Session) (*Listener, err
 	l := &Listener{
 		pConn:     conn,
 		acceptCh:  make(chan *Conn),
-		conns:     make(map[string]*Conn),
+		conns:     make(map[string][]*Conn),
 		accepting: true,
 		session:   session,
 	}
@@ -102,8 +102,10 @@ func (l *Listener) close() error {
 	defer l.mu.Unlock()
 
 	err := l.pConn.Close()
-	for k, v := range l.conns {
-		v.close()
+	for k, conns := range l.conns {
+		for _, conn := range conns {
+			conn.close()
+		}
 		delete(l.conns, k)
 	}
 
@@ -166,8 +168,12 @@ func (l *Listener) readLoop() {
 
 		conn, err := l.getConn(raddr)
 		if err != nil {
+			println("GET CONN NOK")
+			fmt.Println(err)
 			continue
 		}
+
+		println("GET CONN OK")
 
 		select {
 		case conn.receiveCh <- buf[:n]:
@@ -183,21 +189,56 @@ func (l *Listener) getConn(raddr net.Addr) (*Conn, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	conn, ok := l.conns[raddr.String()]
+	raddrStr := raddr.String()
+	fmt.Printf("%v\n", l.conns)
+	conns, ok := l.conns[raddrStr]
 	if ok {
-		return conn, nil
+		for _, conn := range conns {
+			if !conn.isClosed && conn.canRead() {
+				return conn, nil
+			}
+		}
 	}
 
 	if !l.accepting {
 		return nil, errClosedListener
 	}
 
-	conn = l.newConn(raddr)
-	l.conns[raddr.String()] = conn
-	l.acceptCh <- conn
-	go conn.readLoop()
+	newConn := l.newConn(raddr)
+	l.acceptCh <- newConn
 
-	return conn, nil
+	select {
+	case <-newConn.doneCh:
+	case <-newConn.StartCh:
+		//if !ok {
+		//	l.conns[raddrStr] = []*Conn{}
+		//}
+		l.conns[raddrStr] = append(l.conns[raddrStr], newConn)
+		go newConn.readLoop()
+		return newConn, nil
+	}
+
+	if !ok || len(l.conns[raddrStr]) == 0 {
+		return nil, errors.New("fail to start new connection")
+	}
+
+	for _, conn := range conns {
+		if conn.target == newConn.target {
+			conn.muActivity.Lock()
+			conn.lastActivity = time.Now()
+			conn.readCount = 0
+			conn.muActivity.Unlock()
+
+			// TODO check if we can loopback
+			if conn.isClosed {
+				return nil, errors.New("closed connection")
+			}
+
+			return conn, nil
+		}
+	}
+
+	return nil, errors.New("fail to get connection")
 }
 
 func (l *Listener) newConn(rAddr net.Addr) *Conn {
@@ -207,6 +248,7 @@ func (l *Listener) newConn(rAddr net.Addr) *Conn {
 		receiveCh: make(chan []byte),
 		readCh:    make(chan []byte),
 		sizeCh:    make(chan int),
+		StartCh:   make(chan struct{}),
 		doneCh:    make(chan struct{}),
 		session:   l.session,
 	}
@@ -225,10 +267,15 @@ type Conn struct {
 	muActivity   sync.RWMutex
 	lastActivity time.Time // the last time the session saw either read or write activity
 	receiveCount int
+	readCount    int
 
 	session  Session // for timeouts
 	doneOnce sync.Once
+	StartCh  chan struct{}
 	doneCh   chan struct{}
+
+	target   string
+	isClosed bool
 }
 
 // readLoop waits for data to come from the listener's readLoop.
@@ -286,6 +333,7 @@ func (c *Conn) Read(p []byte) (int, error) {
 		n := <-c.sizeCh
 		c.muActivity.Lock()
 		c.lastActivity = time.Now()
+		c.readCount++
 		c.muActivity.Unlock()
 		return n, nil
 
@@ -322,8 +370,13 @@ func (c *Conn) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
+func (c *Conn) canRead() bool {
+	return c.session.Requests == 0 || c.readCount < c.session.Requests
+}
+
 func (c *Conn) close() {
 	c.doneOnce.Do(func() {
+		close(c.StartCh)
 		close(c.doneCh)
 	})
 }
@@ -331,6 +384,7 @@ func (c *Conn) close() {
 // Close releases resources related to the Conn.
 func (c *Conn) Close() error {
 	c.close()
+	c.isClosed = true
 
 	c.listener.mu.Lock()
 	defer c.listener.mu.Unlock()

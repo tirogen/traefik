@@ -3,6 +3,7 @@ package udp
 import (
 	"io"
 	"net"
+	"sync"
 
 	"github.com/traefik/traefik/v2/pkg/log"
 )
@@ -11,19 +12,41 @@ import (
 type Proxy struct {
 	// TODO: maybe optimize by pre-resolving it at proxy creation time
 	target string
+
+	lock sync.RWMutex
+	// conns stores the active/idle UDP conns for each client/remoteAddr.
+	conns map[string]*Conn
 }
 
 // NewProxy creates a new Proxy.
 func NewProxy(address string) (*Proxy, error) {
-	return &Proxy{target: address}, nil
+	return &Proxy{
+		target: address,
+		conns:  make(map[string]*Conn),
+	}, nil
 }
 
 // ServeUDP implements the Handler interface.
 func (p *Proxy) ServeUDP(conn *Conn) {
+	conn.target = p.target
+
+	raddr := conn.rAddr.String()
+
+	p.lock.RLock()
+	// FIXME think about mutex and opportunity to check if the conn is closed
+	if c, ok := p.conns[raddr]; ok && !c.isClosed {
+		conn.Close()
+		return
+	}
+	p.lock.RUnlock()
+
+	conn.StartCh <- struct{}{}
+
 	log.WithoutContext().Debugf("Handling connection from %s", conn.rAddr)
 
-	// needed because of e.g. server.trackedConnection
-	defer conn.Close()
+	p.lock.Lock()
+	p.conns[raddr] = conn
+	p.lock.Unlock()
 
 	connBackend, err := net.Dial("udp", p.target)
 	if err != nil {
@@ -44,6 +67,12 @@ func (p *Proxy) ServeUDP(conn *Conn) {
 	}
 
 	<-errChan
+
+	p.lock.Lock()
+	// needed because of e.g. server.trackedConnection
+	conn.Close()
+	delete(p.conns, raddr)
+	p.lock.Unlock()
 }
 
 func connCopy(dst io.WriteCloser, src io.Reader, errCh chan error) {

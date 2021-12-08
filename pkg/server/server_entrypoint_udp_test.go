@@ -30,7 +30,7 @@ func TestShutdownUDPConn(t *testing.T) {
 	go entryPoint.Start(context.Background())
 	entryPoint.Switch(udp.HandlerFunc(func(conn *udp.Conn) {
 		for {
-			b := make([]byte, 1024*1024)
+			b := make([]byte, 1024)
 			n, err := conn.Read(b)
 			require.NoError(t, err)
 			// We control the termination, otherwise we would block on the Read above, until
@@ -40,7 +40,9 @@ func TestShutdownUDPConn(t *testing.T) {
 			if string(b[:n]) == "CLOSE" {
 				return
 			}
+			println(string(b[:n]))
 			_, err = conn.Write(b[:n])
+			conn.StartCh <- struct{}{}
 			require.NoError(t, err)
 		}
 	}))
@@ -49,7 +51,7 @@ func TestShutdownUDPConn(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start sending packets, to create a "session" with the server.
-	requireEcho(t, "TEST", conn, time.Second)
+	requireEcho(t, "TEST", conn, 10*time.Second)
 
 	doneChan := make(chan struct{})
 	go func() {
@@ -58,7 +60,7 @@ func TestShutdownUDPConn(t *testing.T) {
 	}()
 
 	// Make sure that our session is still live even after the shutdown.
-	requireEcho(t, "TEST2", conn, time.Second)
+	requireEcho(t, "TEST2", conn, 10*time.Second)
 
 	// And make sure that on the other hand, opening new sessions is not possible anymore.
 	conn2, err := net.Dial("udp", entryPoint.listener.Addr().String())
@@ -71,12 +73,12 @@ func TestShutdownUDPConn(t *testing.T) {
 	// Make sure that our session is yet again still live. This is specifically to
 	// make sure we don't create a regression in listener's readLoop, i.e. that we only
 	// terminate the listener's readLoop goroutine by closing its pConn.
-	requireEcho(t, "TEST3", conn, time.Second)
+	requireEcho(t, "TEST3", conn, 10*time.Second)
 
 	done := make(chan bool)
 	go func() {
 		defer close(done)
-		b := make([]byte, 1024*1024)
+		b := make([]byte, 1024)
 		n, err := conn2.Read(b)
 		require.Error(t, err)
 		require.Equal(t, 0, n)
@@ -113,7 +115,7 @@ func requireEcho(t *testing.T, data string, conn io.ReadWriter, timeout time.Dur
 
 	doneChan := make(chan struct{})
 	go func() {
-		b := make([]byte, 1024*1024)
+		b := make([]byte, 1024)
 		n, err := conn.Read(b)
 		require.NoError(t, err)
 		require.Equal(t, data, string(b[:n]))
