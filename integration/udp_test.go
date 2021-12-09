@@ -100,3 +100,70 @@ func (s *UDPSuite) TestWRR(c *check.C) {
 		c.Error("Timeout")
 	}
 }
+
+func (s *UDPSuite) TestWRR_disableSticky(c *check.C) {
+	file := s.adaptFile(c, "fixtures/udp/wrr_disable_sticky.toml", struct {
+		WhoamiAIP string
+		WhoamiBIP string
+		WhoamiCIP string
+		WhoamiDIP string
+	}{
+		WhoamiAIP: s.getComposeServiceIP(c, "whoami-a"),
+		WhoamiBIP: s.getComposeServiceIP(c, "whoami-b"),
+		WhoamiCIP: s.getComposeServiceIP(c, "whoami-c"),
+		WhoamiDIP: s.getComposeServiceIP(c, "whoami-d"),
+	})
+	defer os.Remove(file)
+
+	cmd, display := s.traefikCmd(withConfigFile(file))
+	defer display(c)
+
+	err := cmd.Start()
+	c.Assert(err, checker.IsNil)
+	defer s.killCmd(cmd)
+
+	err = try.GetRequest("http://127.0.0.1:8080/api/rawdata", 5*time.Second, try.StatusCodeIs(http.StatusOK), try.BodyContains("whoami-a"))
+	c.Assert(err, checker.IsNil)
+
+	err = try.GetRequest("http://127.0.0.1:8093/who", 5*time.Second, try.StatusCodeIs(http.StatusOK))
+	c.Assert(err, checker.IsNil)
+
+	udpAddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:8093")
+	c.Assert(err, checker.IsNil)
+
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+	c.Assert(err, checker.IsNil)
+
+	stop := make(chan struct{})
+	go func() {
+		call := map[string]int{}
+		for i := 0; i < 4; i++ {
+			_, err = conn.Write([]byte("WHO"))
+			c.Assert(err, checker.IsNil)
+
+			buff := make([]byte, 2048)
+			n, err := conn.Read(buff)
+			c.Assert(err, checker.IsNil)
+
+			out := string(buff[:n])
+			switch {
+			case strings.Contains(out, "whoami-a"):
+				call["whoami-a"]++
+			case strings.Contains(out, "whoami-b"):
+				call["whoami-b"]++
+			case strings.Contains(out, "whoami-c"):
+				call["whoami-c"]++
+			default:
+				call["unknown"]++
+			}
+		}
+		c.Assert(call, checker.DeepEquals, map[string]int{"whoami-a": 2, "whoami-b": 1, "whoami-c": 1})
+		close(stop)
+	}()
+
+	select {
+	case <-stop:
+	case <-time.Tick(5 * time.Second):
+		c.Error("Timeout")
+	}
+}

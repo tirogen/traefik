@@ -1,7 +1,7 @@
 package udp
 
 import (
-	"io"
+	"errors"
 	"net"
 
 	"github.com/traefik/traefik/v2/pkg/log"
@@ -10,51 +10,51 @@ import (
 // Proxy is a reverse-proxy implementation of the Handler interface.
 type Proxy struct {
 	// TODO: maybe optimize by pre-resolving it at proxy creation time
-	target string
+	target net.Addr
 }
 
 // NewProxy creates a new Proxy.
 func NewProxy(address string) (*Proxy, error) {
-	return &Proxy{target: address}, nil
+	addr, err := net.ResolveUDPAddr("udp", address)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Proxy{target: addr}, nil
 }
 
 // ServeUDP implements the Handler interface.
 func (p *Proxy) ServeUDP(conn *Conn) {
 	log.WithoutContext().Debugf("Handling connection from %s", conn.rAddr)
 
-	// needed because of e.g. server.trackedConnection
-	defer conn.Close()
-
-	connBackend, err := net.Dial("udp", p.target)
-	if err != nil {
-		log.WithoutContext().Errorf("Error while connecting to backend: %v", err)
-		return
-	}
-
-	// maybe not needed, but just in case
-	defer connBackend.Close()
-
 	errChan := make(chan error)
-	go connCopy(conn, connBackend, errChan)
-	go connCopy(connBackend, conn, errChan)
+	go func() {
+		for {
+			buf := make([]byte, maxDatagramSize)
+			n, err := conn.Read(buf)
+			if err != nil {
+				// conn.Read only returns an error if the connection has been closed.
+				// So we want to quit early, and do not log the error.
+				errChan <- nil
 
-	err = <-errChan
+				return
+			}
+
+			_, err = conn.backendsConn.WriteTo(buf[:n], p.target)
+			if err != nil {
+				var netErr net.Error
+				if errors.As(err, &netErr) && (netErr.Temporary() || netErr.Timeout()) {
+					continue
+				}
+
+				errChan <- err
+				return
+			}
+		}
+	}()
+
+	err := <-errChan
 	if err != nil {
 		log.WithoutContext().Errorf("Error while serving UDP: %v", err)
-	}
-
-	<-errChan
-}
-
-func connCopy(dst io.WriteCloser, src io.Reader, errCh chan error) {
-	// The buffer is initialized to the maximum UDP datagram size,
-	// to make sure that the whole UDP datagram is read or written atomically (no data is discarded).
-	buffer := make([]byte, maxDatagramSize)
-
-	_, err := io.CopyBuffer(dst, src, buffer)
-	errCh <- err
-
-	if err := dst.Close(); err != nil {
-		log.WithoutContext().Debugf("Error while terminating connection: %v", err)
 	}
 }

@@ -12,23 +12,18 @@ import (
 )
 
 func TestProxy_ServeUDP(t *testing.T) {
-	backendAddr := ":8081"
-	go newServer(t, backendAddr, HandlerFunc(func(conn *Conn) {
-		for {
-			b := make([]byte, 1024*1024)
-			n, err := conn.Read(b)
-			require.NoError(t, err)
-
-			_, err = conn.Write(b[:n])
-			require.NoError(t, err)
-		}
-	}))
+	backendAddr := "127.0.0.1:8081"
+	backendConn := newEchoBackend(t, backendAddr, 1024*1024)
+	defer func() {
+		require.NoError(t, backendConn.Close())
+	}()
 
 	proxy, err := NewProxy(backendAddr)
 	require.NoError(t, err)
 
 	proxyAddr := ":8080"
-	go newServer(t, proxyAddr, proxy)
+	listener := newServer(t, proxyAddr, proxy)
+	defer listener.Close()
 
 	time.Sleep(time.Second)
 
@@ -55,26 +50,22 @@ func TestProxy_ServeUDP_MaxDataSize(t *testing.T) {
 	// 65535 − 8 (UDP header) − 20 (IP header).
 	dataSize := 65507
 
-	backendAddr := ":8083"
-	go newServer(t, backendAddr, HandlerFunc(func(conn *Conn) {
-		buffer := make([]byte, dataSize)
-
-		n, err := conn.Read(buffer)
-		require.NoError(t, err)
-
-		_, err = conn.Write(buffer[:n])
-		require.NoError(t, err)
-	}))
+	backendAddr := "127.0.0.1:8083"
+	backendConn := newEchoBackend(t, backendAddr, dataSize)
+	defer func() {
+		require.NoError(t, backendConn.Close())
+	}()
 
 	proxy, err := NewProxy(backendAddr)
 	require.NoError(t, err)
 
-	proxyAddr := ":8082"
-	go newServer(t, proxyAddr, proxy)
+	listenerAddr := ":8082"
+	listener := newServer(t, listenerAddr, proxy)
+	defer listener.Close()
 
 	time.Sleep(time.Second)
 
-	udpConn, err := net.Dial("udp", proxyAddr)
+	udpConn, err := net.Dial("udp", listenerAddr)
 	require.NoError(t, err)
 
 	want := make([]byte, dataSize)
@@ -93,19 +84,63 @@ func TestProxy_ServeUDP_MaxDataSize(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-func newServer(t *testing.T, addr string, handler Handler) {
+func newServer(t *testing.T, addr string, handler Handler) *Listener {
+	t.Helper()
+
+	return newServerWithOptions(t, addr, 3*time.Second, 0, handler)
+}
+
+func newServerWithOptions(t *testing.T, addr string, timeout time.Duration, requests int, handler Handler) *Listener {
 	t.Helper()
 
 	addrL, err := net.ResolveUDPAddr("udp", addr)
 	require.NoError(t, err)
 
-	listener, err := Listen("udp", addrL, 3*time.Second)
+	listener, err := Listen("udp", addrL, timeout, requests)
 	require.NoError(t, err)
 
-	for {
-		conn, err := listener.Accept()
-		require.NoError(t, err)
+	go func() {
+		for {
+			if !listener.accepting {
+				return
+			}
 
-		go handler.ServeUDP(conn)
-	}
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+
+			go handler.ServeUDP(conn)
+		}
+	}()
+
+	return listener
+}
+
+func newEchoBackend(t *testing.T, addr string, dataSize int) *net.UDPConn {
+	t.Helper()
+
+	backendAddr, err := net.ResolveUDPAddr("udp", addr)
+	require.NoError(t, err)
+
+	backendConn, err := net.ListenUDP("udp", backendAddr)
+	require.NoError(t, err)
+
+	go func() {
+		for {
+			buffer := make([]byte, dataSize)
+
+			n, addr, err := backendConn.ReadFrom(buffer)
+			if err != nil {
+				return
+			}
+
+			_, err = backendConn.WriteTo(buffer[:n], addr)
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	return backendConn
 }
