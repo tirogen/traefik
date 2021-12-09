@@ -6,6 +6,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/traefik/traefik/v2/pkg/log"
 )
 
 // maxDatagramSize is the maximum size of a UDP datagram.
@@ -17,7 +19,8 @@ var errClosedListener = errors.New("udp: listener closed")
 
 // Listener augments a session-oriented Listener over a UDP PacketConn.
 type Listener struct {
-	pConn *net.UDPConn
+	pConn  *net.UDPConn
+	lConns map[string]*connWrapper // FIXME: add mutex
 
 	mu    sync.RWMutex
 	conns map[string]*Conn
@@ -45,6 +48,7 @@ func Listen(network string, laddr *net.UDPAddr, timeout time.Duration) (*Listene
 
 	l := &Listener{
 		pConn:     conn,
+		lConns:    make(map[string]*connWrapper),
 		acceptCh:  make(chan *Conn),
 		conns:     make(map[string]*Conn),
 		accepting: true,
@@ -142,6 +146,7 @@ func (l *Listener) readLoop() {
 		if err != nil {
 			return
 		}
+
 		conn, err := l.getConn(raddr)
 		if err != nil {
 			continue
@@ -169,12 +174,114 @@ func (l *Listener) getConn(raddr net.Addr) (*Conn, error) {
 	if !l.accepting {
 		return nil, errClosedListener
 	}
+
 	conn = l.newConn(raddr)
+
+	var err error
+	conn.lConn, err = l.getLocalConn(raddr)
+	if err != nil {
+		return nil, err
+	}
+
 	l.conns[raddr.String()] = conn
 	l.acceptCh <- conn
 	go conn.readLoop()
 
 	return conn, nil
+}
+
+func (l *Listener) getLocalConn(raddr net.Addr) (*connWrapper, error) {
+	conn, exists := l.lConns[raddr.String()]
+	if exists {
+		return conn, nil
+	}
+
+	lconn, err := net.ListenUDP("udp", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	lconnWrapped := NewConnWrapper(lconn)
+
+	l.lConns[raddr.String()] = lconnWrapped
+
+	go func() {
+		ticker := time.NewTicker(l.timeout / 10)
+		defer ticker.Stop()
+
+		for {
+			<-ticker.C
+
+			lconnWrapped.muActivity.RLock()
+			deadline := lconnWrapped.lastActivity.Add(l.timeout)
+			lconnWrapped.muActivity.RUnlock()
+
+			// FIXME: usefull ?
+			_, exists := l.conns[raddr.String()]
+			if exists {
+				continue
+			}
+
+			if time.Now().After(deadline) {
+				lconnWrapped.Close()
+				delete(l.lConns, raddr.String())
+
+				return
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			buf := make([]byte, maxDatagramSize)
+			n, err := lconnWrapped.Read(buf)
+			if err != nil {
+				log.WithoutContext().Errorf("FIXME: %v", err)
+				if lconnWrapped.closed {
+					return
+				}
+				continue
+			}
+
+			lconnWrapped.muActivity.Lock()
+			lconnWrapped.lastActivity = time.Now()
+			lconnWrapped.muActivity.Unlock()
+
+			_, err = l.pConn.WriteTo(buf[:n], raddr)
+			if err != nil {
+				log.WithoutContext().Errorf("FIXME: %v", err)
+				continue
+			}
+		}
+	}()
+
+	return lconnWrapped, nil
+}
+
+type connWrapper struct {
+	*net.UDPConn
+
+	muActivity   sync.RWMutex
+	lastActivity time.Time
+	closed       bool
+}
+
+func NewConnWrapper(conn *net.UDPConn) *connWrapper {
+	return &connWrapper{UDPConn: conn}
+}
+
+func (c *connWrapper) Close() error {
+	c.closed = true
+
+	return c.Close()
+}
+
+func (c *connWrapper) WriteTo(p []byte, target net.Addr) (int, error) {
+	c.muActivity.Lock()
+	c.lastActivity = time.Now()
+	c.muActivity.Unlock()
+
+	return c.WriteTo(p, target)
 }
 
 func (l *Listener) newConn(rAddr net.Addr) *Conn {
@@ -193,6 +300,7 @@ func (l *Listener) newConn(rAddr net.Addr) *Conn {
 type Conn struct {
 	listener *Listener
 	rAddr    net.Addr
+	lConn    *connWrapper
 
 	receiveCh chan []byte // to receive the data from the listener's readLoop
 	readCh    chan []byte // to receive the buffer into which we should Read
@@ -269,16 +377,16 @@ func (c *Conn) Read(p []byte) (int, error) {
 	}
 }
 
-// Write writes len(p) bytes from p to the underlying connection.
-// Each call sends at most one datagram.
-// It is an error to send a message larger than the system's max UDP datagram size.
-func (c *Conn) Write(p []byte) (n int, err error) {
-	c.muActivity.Lock()
-	c.lastActivity = time.Now()
-	c.muActivity.Unlock()
-
-	return c.listener.pConn.WriteTo(p, c.rAddr)
-}
+// // Write writes len(p) bytes from p to the underlying connection.
+// // Each call sends at most one datagram.
+// // It is an error to send a message larger than the system's max UDP datagram size.
+// func (c *Conn) Write(p []byte) (n int, err error) {
+// 	c.muActivity.Lock()
+// 	c.lastActivity = time.Now()
+// 	c.muActivity.Unlock()
+//
+// 	return c.listener.pConn.WriteTo(p, c.rAddr)
+// }
 
 func (c *Conn) close() {
 	c.doneOnce.Do(func() {

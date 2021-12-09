@@ -10,12 +10,17 @@ import (
 // Proxy is a reverse-proxy implementation of the Handler interface.
 type Proxy struct {
 	// TODO: maybe optimize by pre-resolving it at proxy creation time
-	target string
+	target net.Addr
 }
 
 // NewProxy creates a new Proxy.
 func NewProxy(address string) (*Proxy, error) {
-	return &Proxy{target: address}, nil
+	addr, err := net.ResolveUDPAddr("udp", address)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Proxy{target: addr}, nil
 }
 
 // ServeUDP implements the Handler interface.
@@ -25,25 +30,20 @@ func (p *Proxy) ServeUDP(conn *Conn) {
 	// needed because of e.g. server.trackedConnection
 	defer conn.Close()
 
-	connBackend, err := net.Dial("udp", p.target)
-	if err != nil {
-		log.WithoutContext().Errorf("Error while connecting to backend: %v", err)
-		return
+	for {
+		buf := make([]byte, maxDatagramSize)
+		n, err := conn.Read(buf)
+		if err != nil {
+			log.WithoutContext().Errorf("FIXME: %v", err)
+			return
+		}
+
+		_, err = conn.lConn.WriteTo(buf[:n], p.target)
+		if err != nil {
+			log.WithoutContext().Errorf("FIXME: %v", err)
+			return
+		}
 	}
-
-	// maybe not needed, but just in case
-	defer connBackend.Close()
-
-	errChan := make(chan error)
-	go connCopy(conn, connBackend, errChan)
-	go connCopy(connBackend, conn, errChan)
-
-	err = <-errChan
-	if err != nil {
-		log.WithoutContext().Errorf("Error while serving UDP: %v", err)
-	}
-
-	<-errChan
 }
 
 func connCopy(dst io.WriteCloser, src io.Reader, errCh chan error) {
