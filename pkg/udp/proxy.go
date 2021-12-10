@@ -1,6 +1,7 @@
 package udp
 
 import (
+	"errors"
 	"io"
 	"net"
 
@@ -30,20 +31,37 @@ func (p *Proxy) ServeUDP(conn *Conn) {
 	// needed because of e.g. server.trackedConnection
 	defer conn.Close()
 
-	for {
-		buf := make([]byte, maxDatagramSize)
-		n, err := conn.Read(buf)
-		if err != nil {
-			log.WithoutContext().Errorf("FIXME: %v", err)
-			return
-		}
+	errChan := make(chan error)
+	go connCopy(conn, conn.lConn, errChan)
 
-		_, err = conn.lConn.WriteTo(buf[:n], p.target)
-		if err != nil {
-			log.WithoutContext().Errorf("FIXME: %v", err)
-			return
+	//go connCopy(conn.lConn, conn, errChan)
+	go func() {
+		for {
+			buf := make([]byte, maxDatagramSize)
+			n, err := conn.Read(buf)
+			if err != nil {
+				// FIXME really ?
+				if errors.Is(err, io.EOF) {
+					return
+				}
+				log.WithoutContext().Errorf("FIXME: %v", err)
+				return
+			}
+
+			_, err = conn.lConn.WriteTo(buf[:n], p.target)
+			if err != nil {
+				log.WithoutContext().Errorf("FIXME: %v", err)
+				return
+			}
 		}
+	}()
+
+	err := <-errChan
+	if err != nil {
+		log.WithoutContext().Errorf("Error while serving UDP: %v", err)
 	}
+
+	//<-errChan
 }
 
 func connCopy(dst io.WriteCloser, src io.Reader, errCh chan error) {

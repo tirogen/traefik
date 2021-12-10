@@ -3,6 +3,7 @@ package udp
 import (
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"runtime"
@@ -17,7 +18,7 @@ func TestConsecutiveWrites(t *testing.T) {
 	addr, err := net.ResolveUDPAddr("udp", ":0")
 	require.NoError(t, err)
 
-	ln, err := Listen("udp", addr, 3*time.Second)
+	ln, err := Listen("udp", addr, 3*time.Second, 0)
 	require.NoError(t, err)
 	defer func() {
 		err := ln.Close()
@@ -79,7 +80,7 @@ func TestListenNotBlocking(t *testing.T) {
 
 	require.NoError(t, err)
 
-	ln, err := Listen("udp", addr, 3*time.Second)
+	ln, err := Listen("udp", addr, 3*time.Second, 0)
 	require.NoError(t, err)
 	defer func() {
 		err := ln.Close()
@@ -168,7 +169,7 @@ func TestListenWithZeroTimeout(t *testing.T) {
 	addr, err := net.ResolveUDPAddr("udp", ":0")
 	require.NoError(t, err)
 
-	_, err = Listen("udp", addr, 0)
+	_, err = Listen("udp", addr, 0, 0)
 	assert.Error(t, err)
 }
 
@@ -186,7 +187,7 @@ func testTimeout(t *testing.T, withRead bool) {
 	addr, err := net.ResolveUDPAddr("udp", ":0")
 	require.NoError(t, err)
 
-	ln, err := Listen("udp", addr, 3*time.Second)
+	ln, err := Listen("udp", addr, 3*time.Second, 0)
 	require.NoError(t, err)
 	defer func() {
 		err := ln.Close()
@@ -230,7 +231,7 @@ func TestShutdown(t *testing.T) {
 	addr, err := net.ResolveUDPAddr("udp", ":0")
 	require.NoError(t, err)
 
-	l, err := Listen("udp", addr, 3*time.Second)
+	l, err := Listen("udp", addr, 3*time.Second, 0)
 	require.NoError(t, err)
 
 	go func() {
@@ -334,7 +335,7 @@ func TestReadLoopMaxDataSize(t *testing.T) {
 	addr, err := net.ResolveUDPAddr("udp", ":0")
 	require.NoError(t, err)
 
-	l, err := Listen("udp", addr, 3*time.Second)
+	l, err := Listen("udp", addr, 3*time.Second, 0)
 	require.NoError(t, err)
 
 	defer func() {
@@ -397,5 +398,82 @@ func requireEcho(t *testing.T, data string, conn io.ReadWriter, timeout time.Dur
 	case <-doneChan:
 	case <-time.Tick(timeout):
 		t.Fatalf("Timeout during echo for: %s", data)
+	}
+}
+
+func Test_ResponseClose(t *testing.T) {
+	requests := 42
+	testCases := []struct {
+		desc        string
+		requests    int
+		wantLBCalls int
+		wantErr     bool
+	}{
+		{
+			desc:        "Empty",
+			wantLBCalls: 1,
+		},
+		{
+			desc:        "With enough requests",
+			requests:    10,
+			wantLBCalls: 5,
+		},
+	}
+
+	for i, test := range testCases {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			backendAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:808%d", 2*i))
+			require.NoError(t, err)
+
+			backendConn, err := net.ListenUDP("udp", backendAddr)
+			require.NoError(t, err)
+
+			go func() {
+				for {
+					b := make([]byte, 2048)
+					_, from, err := backendConn.ReadFrom(b)
+					require.NoError(t, err)
+					_, err = backendConn.WriteTo([]byte("ACK"), from)
+					require.NoError(t, err)
+				}
+			}()
+
+			proxy, err := NewProxy(backendAddr.String())
+			require.NoError(t, err)
+
+			lbCalls := 0
+			proxyHandler := HandlerFunc(func(conn *Conn) {
+				lbCalls++
+				proxy.ServeUDP(conn)
+			})
+
+			proxyAddr := fmt.Sprintf(":808%d", 2*i+1)
+			go newServerWithOptions(t, proxyAddr, time.Second, test.requests, proxyHandler)
+
+			time.Sleep(time.Second)
+			udpConn, err := net.Dial("udp", proxyAddr)
+			require.NoError(t, err)
+
+			var gotErr bool
+			for i := 0; i < requests; i++ {
+				_, err = udpConn.Write([]byte("DATAWRITE"))
+				if err != nil {
+					t.Logf("%v\n", err)
+					gotErr = true
+				}
+
+				b := make([]byte, 2048)
+				n, err := udpConn.Read(b)
+				if err != nil {
+					t.Logf("%v\n", err)
+					gotErr = true
+				}
+				t.Logf("%s -> %d, %v", string(b), n, err)
+			}
+
+			assert.Equal(t, test.wantErr, gotErr)
+			assert.Equal(t, test.wantLBCalls, lbCalls)
+		})
 	}
 }

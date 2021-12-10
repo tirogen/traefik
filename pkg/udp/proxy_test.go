@@ -12,7 +12,7 @@ import (
 )
 
 func TestProxy_ServeUDP(t *testing.T) {
-	backendAddr := ":8081"
+	backendAddr := "127.0.0.1:8081"
 	go newServer(t, backendAddr, HandlerFunc(func(conn *Conn) {
 		for {
 			b := make([]byte, 1024*1024)
@@ -94,12 +94,16 @@ func TestProxy_ServeUDP_MaxDataSize(t *testing.T) {
 }
 
 func newServer(t *testing.T, addr string, handler Handler) {
+	newServerWithOptions(t, addr, 3*time.Second, 0, handler)
+}
+
+func newServerWithOptions(t *testing.T, addr string, timeout time.Duration, requests int, handler Handler) {
 	t.Helper()
 
 	addrL, err := net.ResolveUDPAddr("udp", addr)
 	require.NoError(t, err)
 
-	listener, err := Listen("udp", addrL, 3*time.Second)
+	listener, err := Listen("udp", addrL, timeout, requests)
 	require.NoError(t, err)
 
 	for {

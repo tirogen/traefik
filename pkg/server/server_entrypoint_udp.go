@@ -90,7 +90,7 @@ func NewUDPEntryPoint(cfg *static.EntryPoint) (*UDPEntryPoint, error) {
 		return nil, err
 	}
 
-	listener, err := udp.Listen("udp", addr, time.Duration(cfg.UDP.Timeout))
+	listener, err := udp.Listen("udp", addr, time.Duration(cfg.UDP.Timeout), 10)
 	if err != nil {
 		return nil, err
 	}
