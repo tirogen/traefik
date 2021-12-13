@@ -401,7 +401,7 @@ func requireEcho(t *testing.T, data string, conn io.ReadWriter, timeout time.Dur
 	}
 }
 
-func Test_ResponseClose(t *testing.T) {
+func Test_RequestsLimit(t *testing.T) {
 	requests := 42
 	testCases := []struct {
 		desc        string
@@ -414,9 +414,19 @@ func Test_ResponseClose(t *testing.T) {
 			wantLBCalls: 1,
 		},
 		{
-			desc:        "With enough requests",
-			requests:    10,
+			desc:        "Requests limit is lower than the total of requests",
+			requests:    requests / 4,
 			wantLBCalls: 5,
+		},
+		{
+			desc:        "Requests limit equals the total of requests",
+			requests:    requests,
+			wantLBCalls: 1,
+		},
+		{
+			desc:        "Requests limit is greater than the total of requests",
+			requests:    requests * 2,
+			wantLBCalls: 1,
 		},
 	}
 
@@ -428,14 +438,19 @@ func Test_ResponseClose(t *testing.T) {
 
 			backendConn, err := net.ListenUDP("udp", backendAddr)
 			require.NoError(t, err)
+			defer backendConn.Close()
 
 			go func() {
 				for {
 					b := make([]byte, 2048)
 					_, from, err := backendConn.ReadFrom(b)
-					require.NoError(t, err)
+					if err != nil {
+						return
+					}
 					_, err = backendConn.WriteTo([]byte("ACK"), from)
-					require.NoError(t, err)
+					if err != nil {
+						return
+					}
 				}
 			}()
 
@@ -449,7 +464,8 @@ func Test_ResponseClose(t *testing.T) {
 			})
 
 			proxyAddr := fmt.Sprintf(":808%d", 2*i+1)
-			go newServerWithOptions(t, proxyAddr, time.Second, test.requests, proxyHandler)
+			listener := newServerWithOptions(t, proxyAddr, time.Second, test.requests, proxyHandler)
+			defer listener.Close()
 
 			time.Sleep(time.Second)
 			udpConn, err := net.Dial("udp", proxyAddr)
@@ -466,10 +482,11 @@ func Test_ResponseClose(t *testing.T) {
 				b := make([]byte, 2048)
 				n, err := udpConn.Read(b)
 				if err != nil {
+					println(string(b[:n]))
 					t.Logf("%v\n", err)
 					gotErr = true
 				}
-				t.Logf("%s -> %d, %v", string(b), n, err)
+				//t.Logf("%s -> %d, %v", string(b), n, err)
 			}
 
 			assert.Equal(t, test.wantErr, gotErr)

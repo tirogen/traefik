@@ -13,22 +13,28 @@ import (
 
 func TestProxy_ServeUDP(t *testing.T) {
 	backendAddr := "127.0.0.1:8081"
-	go newServer(t, backendAddr, HandlerFunc(func(conn *Conn) {
+	backendListener := newServer(t, backendAddr, HandlerFunc(func(conn *Conn) {
 		for {
 			b := make([]byte, 1024*1024)
 			n, err := conn.Read(b)
-			require.NoError(t, err)
+			if err != nil {
+				return
+			}
 
 			_, err = conn.Write(b[:n])
-			require.NoError(t, err)
+			if err != nil {
+				return
+			}
 		}
 	}))
+	defer backendListener.Close()
 
 	proxy, err := NewProxy(backendAddr)
 	require.NoError(t, err)
 
 	proxyAddr := ":8080"
-	go newServer(t, proxyAddr, proxy)
+	listener := newServer(t, proxyAddr, proxy)
+	defer listener.Close()
 
 	time.Sleep(time.Second)
 
@@ -56,7 +62,7 @@ func TestProxy_ServeUDP_MaxDataSize(t *testing.T) {
 	dataSize := 65507
 
 	backendAddr := ":8083"
-	go newServer(t, backendAddr, HandlerFunc(func(conn *Conn) {
+	backendListener := newServer(t, backendAddr, HandlerFunc(func(conn *Conn) {
 		buffer := make([]byte, dataSize)
 
 		n, err := conn.Read(buffer)
@@ -65,12 +71,14 @@ func TestProxy_ServeUDP_MaxDataSize(t *testing.T) {
 		_, err = conn.Write(buffer[:n])
 		require.NoError(t, err)
 	}))
+	defer backendListener.Close()
 
 	proxy, err := NewProxy(backendAddr)
 	require.NoError(t, err)
 
 	proxyAddr := ":8082"
-	go newServer(t, proxyAddr, proxy)
+	proxyListener := newServer(t, proxyAddr, proxy)
+	defer proxyListener.Close()
 
 	time.Sleep(time.Second)
 
@@ -93,11 +101,11 @@ func TestProxy_ServeUDP_MaxDataSize(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-func newServer(t *testing.T, addr string, handler Handler) {
-	newServerWithOptions(t, addr, 3*time.Second, 0, handler)
+func newServer(t *testing.T, addr string, handler Handler) *Listener {
+	return newServerWithOptions(t, addr, 3*time.Second, 0, handler)
 }
 
-func newServerWithOptions(t *testing.T, addr string, timeout time.Duration, requests int, handler Handler) {
+func newServerWithOptions(t *testing.T, addr string, timeout time.Duration, requests int, handler Handler) *Listener {
 	t.Helper()
 
 	addrL, err := net.ResolveUDPAddr("udp", addr)
@@ -106,10 +114,20 @@ func newServerWithOptions(t *testing.T, addr string, timeout time.Duration, requ
 	listener, err := Listen("udp", addrL, timeout, requests)
 	require.NoError(t, err)
 
-	for {
-		conn, err := listener.Accept()
-		require.NoError(t, err)
+	go func() {
+		for {
+			if !listener.accepting {
+				return
+			}
 
-		go handler.ServeUDP(conn)
-	}
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+
+			go handler.ServeUDP(conn)
+		}
+	}()
+
+	return listener
 }

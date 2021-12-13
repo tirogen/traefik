@@ -40,6 +40,7 @@ func (p *Proxy) ServeUDP(conn *Conn) {
 			buf := make([]byte, maxDatagramSize)
 			n, err := conn.Read(buf)
 			if err != nil {
+				errChan <- err
 				// FIXME really ?
 				if errors.Is(err, io.EOF) {
 					return
@@ -50,6 +51,8 @@ func (p *Proxy) ServeUDP(conn *Conn) {
 
 			_, err = conn.lConn.WriteTo(buf[:n], p.target)
 			if err != nil {
+				errChan <- err
+
 				log.WithoutContext().Errorf("FIXME: %v", err)
 				return
 			}
@@ -61,7 +64,7 @@ func (p *Proxy) ServeUDP(conn *Conn) {
 		log.WithoutContext().Errorf("Error while serving UDP: %v", err)
 	}
 
-	//<-errChan
+	<-errChan
 }
 
 func connCopy(dst io.WriteCloser, src io.Reader, errCh chan error) {
