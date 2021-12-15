@@ -1,3 +1,11 @@
 #!/usr/bin/env bash
 
-golangci-lint run
+TESTFLAGS=()
+
+exec 3>&1 4>&2
+if [ -n "${CI_OUTPUT_JSON}" ]; then
+	TESTFLAGS+=(--out-format json)
+	exec 3>> golangci-lint.output.1.json 4>> golangci-lint.output.2.json
+fi
+
+golangci-lint run ${TESTFLAGS[*]} 1>&3 2>&4
