@@ -45,6 +45,9 @@ blocks:
             - PRE_TARGET="" make binary
             - make test-integration
             - df -h
+      env_vars:
+        - name: CI_OUTPUT_JSON
+          value: true
       epilogue:
         always:
           commands:

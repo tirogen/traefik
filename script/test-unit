@@ -20,7 +20,7 @@ elif [ -n "$VERBOSE_UNIT" ]; then
     TESTFLAGS+=(-v)
 elif [ -n "${CI_OUTPUT_JSON}" ]; then
     TESTFLAGS+=(-json)
-    exec 3>> gotest.output.1.json 4>> gotest.output.2.json
+    exec 3>> gotest.unit.output.1.json 4>> gotest.unit.output.2.json
 fi
 
 set +e

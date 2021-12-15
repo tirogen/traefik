@@ -5,10 +5,14 @@ export DEST=.
 
 TESTFLAGS+=("-test.timeout=20m" -check.v)
 
+exec 3>&1 4>&2
 if [ -n "$VERBOSE" ]; then
     TESTFLAGS+=(-v)
 elif [ -n "$VERBOSE_INTEGRATION" ]; then
     TESTFLAGS+=(-v)
+elif [ -n "${CI_OUTPUT_JSON}" ]; then
+    TESTFLAGS+=(-json)
+    exec 3>> gotest.integration.output.1.json 4>> gotest.integration.output.2.json
 fi
 
 cd integration
@@ -16,4 +20,4 @@ echo "Testing against..."
 docker version
 
 # shellcheck disable=SC2086
-CGO_ENABLED=0 go test -integration ${TESTFLAGS[*]}
+CGO_ENABLED=0 go test -integration ${TESTFLAGS[*]} 1>&3 2>&4
