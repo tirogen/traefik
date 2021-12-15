@@ -2651,3 +2651,7 @@ func Test_buildConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func Test_dummy(t *testing.T) {
+	t.Fail()
+}

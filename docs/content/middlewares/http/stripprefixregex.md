@@ -5,6 +5,8 @@ Removing Prefixes From the Path Before Forwarding the Request (Using a Regex)
 
 Remove the matching prefixes from the URL path.
 
+bonjour comment ça va this is a good langauge ?
+
 ## Configuration Examples
 
 ```yaml tab="Docker"

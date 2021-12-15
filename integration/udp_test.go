@@ -100,3 +100,7 @@ func (s *UDPSuite) TestWRR(c *check.C) {
 		c.Error("Timeout")
 	}
 }
+
+func (s *UDPSuite) TestDummy(c *check.C) {
+	c.Fail()
+}
