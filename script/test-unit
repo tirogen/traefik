@@ -21,6 +21,9 @@ elif [ -n "$VERBOSE_UNIT" ]; then
 elif [ -n "${CI_OUTPUT_JSON}" ]; then
     TESTFLAGS+=(-json)
     exec 3>> gotest.unit.output.1.json 4>> gotest.unit.output.2.json
+    echo "Outputing tests to gotest.unit.output.{1,2}.json"
+	file gotest.unit.output.1.json
+	find .
 fi
 
 set +e
