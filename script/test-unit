@@ -13,16 +13,20 @@ TEXTRESET=$'\033[0m' # reset the foreground colour
 # -failfast -timeout=5m
 TESTFLAGS=(-cover "-coverprofile=cover.out" "${TESTFLAGS}")
 
+exec 3>&1 4>&2
 if [ -n "$VERBOSE" ]; then
     TESTFLAGS+=(-v)
 elif [ -n "$VERBOSE_UNIT" ]; then
     TESTFLAGS+=(-v)
+elif [ -n "${CI_OUTPUT_JSON}" ]; then
+    TESTFLAGS+=(-json)
+    exec 3>> gotest.output.1.json 4>> gotest.output.2.json
 fi
 
 set +e
 
 # shellcheck disable=SC2086
-go test ${TESTFLAGS[*]} ./pkg/...
+go test ${TESTFLAGS[*]} ./pkg/... 1>&3 2>&4
 
 CODE=$?
 if [ ${CODE} != 0 ]; then

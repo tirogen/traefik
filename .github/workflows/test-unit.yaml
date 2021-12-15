@@ -8,6 +8,7 @@ on:
 env:
   GO_VERSION: 1.17
   PRE_TARGET: ""
+  CI_OUTPUT_JSON: true
 
 jobs:
 
