@@ -10,6 +10,7 @@ env:
   GOLANGCI_LINT_VERSION: v1.43.0
   MISSSPELL_VERSION: v0.3.4
   PRE_TARGET: ""
+  CI_OUTPUT_JSON: true
 
 jobs:
 
