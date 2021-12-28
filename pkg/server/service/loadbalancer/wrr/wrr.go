@@ -34,9 +34,10 @@ type Balancer struct {
 	stickyCookie     *stickyCookie
 	wantsHealthCheck bool
 
-	mutex       sync.RWMutex
-	handlers    []*namedHandler
-	curDeadline float64
+	mutex           sync.RWMutex
+	handlers        []*namedHandler
+	fallbackHandler *namedHandler
+	curDeadline     float64
 	// status is a record of which child services of the Balancer are healthy, keyed
 	// by name of child service. A service is initially added to the map when it is
 	// created via AddService, and it is later removed or added to the map as needed,
@@ -154,6 +155,9 @@ func (b *Balancer) nextServer() (*namedHandler, error) {
 		return nil, fmt.Errorf("no servers in the pool")
 	}
 	if len(b.status) == 0 {
+		if b.fallbackHandler != nil {
+			return b.fallbackHandler, nil
+		}
 		return nil, errNoAvailableServer
 	}
 
@@ -230,15 +234,18 @@ func (b *Balancer) AddService(name string, handler http.Handler, weight *int) {
 	if weight != nil {
 		w = *weight
 	}
-	if w <= 0 { // non-positive weight is meaningless
-		return
-	}
 
 	h := &namedHandler{Handler: handler, name: name, weight: float64(w)}
 
 	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
+	if w <= 0 {
+		b.fallbackHandler = h
+		return
+	}
+
 	h.deadline = b.curDeadline + 1/h.weight
 	heap.Push(b, h)
 	b.status[name] = struct{}{}
-	b.mutex.Unlock()
 }

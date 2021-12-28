@@ -290,3 +290,72 @@ func TestBalancerBias(t *testing.T) {
 
 	assert.Equal(t, wantSequence, recorder.sequence)
 }
+
+func TestBalancerFallback(t *testing.T) {
+	balancer := New(nil, nil)
+
+	balancer.AddService("first", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("server", "first")
+		rw.WriteHeader(http.StatusOK)
+	}), Int(1))
+
+	balancer.AddService("fallback", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("server", "fallback")
+		rw.WriteHeader(http.StatusOK)
+	}), Int(0)) // 0 Weigth sets the service as fallback
+
+	recorder := &responseRecorder{ResponseRecorder: httptest.NewRecorder(), save: map[string]int{}}
+	for i := 0; i < 4; i++ {
+		balancer.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	}
+
+	assert.Equal(t, 4, recorder.save["first"])
+	assert.Equal(t, 0, recorder.save["fallback"])
+
+	balancer.SetStatus(context.Background(), "first", false)
+
+	recorder = &responseRecorder{ResponseRecorder: httptest.NewRecorder(), save: map[string]int{}}
+	for i := 0; i < 4; i++ {
+		balancer.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	}
+
+	assert.Equal(t, 0, recorder.save["first"])
+	assert.Equal(t, 4, recorder.save["fallback"])
+}
+
+func TestBalancerFallback_MultipleFallbackServices(t *testing.T) {
+	balancer := New(nil, nil)
+
+	balancer.AddService("first", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("server", "first")
+		rw.WriteHeader(http.StatusOK)
+	}), Int(1))
+
+	balancer.AddService("fallback0", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("server", "fallback0")
+		rw.WriteHeader(http.StatusOK)
+	}), Int(0))
+
+	balancer.AddService("fallback1", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("server", "fallback1")
+		rw.WriteHeader(http.StatusOK)
+	}), Int(0))
+
+	recorder := &responseRecorder{ResponseRecorder: httptest.NewRecorder(), save: map[string]int{}}
+	for i := 0; i < 4; i++ {
+		balancer.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	}
+
+	assert.Equal(t, 4, recorder.save["first"])
+	assert.Equal(t, 0, recorder.save["fallback"])
+
+	balancer.SetStatus(context.Background(), "first", false)
+
+	recorder = &responseRecorder{ResponseRecorder: httptest.NewRecorder(), save: map[string]int{}}
+	for i := 0; i < 4; i++ {
+		balancer.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	}
+
+	assert.Equal(t, 0, recorder.save["first"])
+	assert.Equal(t, 4, recorder.save["fallback1"])
+}
