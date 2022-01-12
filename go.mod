@@ -86,7 +86,7 @@ require (
 	k8s.io/client-go v0.22.1
 	k8s.io/utils v0.0.0-20210820185131-d34e5cb4466e
 	mvdan.cc/xurls/v2 v2.1.0
-	sigs.k8s.io/gateway-api v0.4.0
+	sigs.k8s.io/gateway-api v0.4.1
 )
 
 // Containous forks
