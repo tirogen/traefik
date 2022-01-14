@@ -1,8 +1,7 @@
 package aggregator
 
 import (
-	"encoding/json"
-
+	"github.com/traefik/traefik/v2/pkg/anonymize"
 	"github.com/traefik/traefik/v2/pkg/config/dynamic"
 	"github.com/traefik/traefik/v2/pkg/config/static"
 	"github.com/traefik/traefik/v2/pkg/log"
@@ -140,7 +139,7 @@ func (p ProviderAggregator) Provide(configurationChan chan<- dynamic.Message, po
 }
 
 func launchProvider(configurationChan chan<- dynamic.Message, pool *safe.Pool, prd provider.Provider) {
-	jsonConf, err := json.Marshal(prd)
+	jsonConf, err := anonymize.Do(prd, "loggable", false)
 	if err != nil {
 		log.WithoutContext().Debugf("Cannot marshal the provider configuration %T: %v", prd, err)
 	}
