@@ -48,17 +48,17 @@ var _ provider.Provider = (*Provider)(nil)
 
 // Provider holds configurations of the provider.
 type Provider struct {
-	Constraints             string           `description:"Constraints is an expression that Traefik matches against the container's labels to determine whether to create any route for that container." json:"constraints,omitempty" toml:"constraints,omitempty" yaml:"constraints,omitempty" export:"true"`
-	Watch                   bool             `description:"Watch Docker Swarm events." json:"watch,omitempty" toml:"watch,omitempty" yaml:"watch,omitempty" export:"true"`
+	Constraints             string           `description:"Constraints is an expression that Traefik matches against the container's labels to determine whether to create any route for that container." json:"constraints,omitempty" toml:"constraints,omitempty" yaml:"constraints,omitempty" export:"true" loggable:"true"`
+	Watch                   bool             `description:"Watch Docker Swarm events." json:"watch,omitempty" toml:"watch,omitempty" yaml:"watch,omitempty" export:"true" loggable:"true"`
 	Endpoint                string           `description:"Docker server endpoint. Can be a tcp or a unix socket endpoint." json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty"`
 	DefaultRule             string           `description:"Default rule." json:"defaultRule,omitempty" toml:"defaultRule,omitempty" yaml:"defaultRule,omitempty"`
-	TLS                     *types.ClientTLS `description:"Enable Docker TLS support." json:"tls,omitempty" toml:"tls,omitempty" yaml:"tls,omitempty" export:"true"`
-	ExposedByDefault        bool             `description:"Expose containers by default." json:"exposedByDefault,omitempty" toml:"exposedByDefault,omitempty" yaml:"exposedByDefault,omitempty" export:"true"`
-	UseBindPortIP           bool             `description:"Use the ip address from the bound port, rather than from the inner network." json:"useBindPortIP,omitempty" toml:"useBindPortIP,omitempty" yaml:"useBindPortIP,omitempty" export:"true"`
-	SwarmMode               bool             `description:"Use Docker on Swarm Mode." json:"swarmMode,omitempty" toml:"swarmMode,omitempty" yaml:"swarmMode,omitempty" export:"true"`
-	Network                 string           `description:"Default Docker network used." json:"network,omitempty" toml:"network,omitempty" yaml:"network,omitempty" export:"true"`
-	SwarmModeRefreshSeconds ptypes.Duration  `description:"Polling interval for swarm mode." json:"swarmModeRefreshSeconds,omitempty" toml:"swarmModeRefreshSeconds,omitempty" yaml:"swarmModeRefreshSeconds,omitempty" export:"true"`
-	HTTPClientTimeout       ptypes.Duration  `description:"Client timeout for HTTP connections." json:"httpClientTimeout,omitempty" toml:"httpClientTimeout,omitempty" yaml:"httpClientTimeout,omitempty" export:"true"`
+	TLS                     *types.ClientTLS `description:"Enable Docker TLS support." json:"tls,omitempty" toml:"tls,omitempty" yaml:"tls,omitempty" export:"true" loggable:"true"`
+	ExposedByDefault        bool             `description:"Expose containers by default." json:"exposedByDefault,omitempty" toml:"exposedByDefault,omitempty" yaml:"exposedByDefault,omitempty" export:"true" loggable:"true"`
+	UseBindPortIP           bool             `description:"Use the ip address from the bound port, rather than from the inner network." json:"useBindPortIP,omitempty" toml:"useBindPortIP,omitempty" yaml:"useBindPortIP,omitempty" export:"true" loggable:"true"`
+	SwarmMode               bool             `description:"Use Docker on Swarm Mode." json:"swarmMode,omitempty" toml:"swarmMode,omitempty" yaml:"swarmMode,omitempty" export:"true" loggable:"true"`
+	Network                 string           `description:"Default Docker network used." json:"network,omitempty" toml:"network,omitempty" yaml:"network,omitempty" export:"true" loggable:"true"`
+	SwarmModeRefreshSeconds ptypes.Duration  `description:"Polling interval for swarm mode." json:"swarmModeRefreshSeconds,omitempty" toml:"swarmModeRefreshSeconds,omitempty" yaml:"swarmModeRefreshSeconds,omitempty" export:"true" loggable:"true"`
+	HTTPClientTimeout       ptypes.Duration  `description:"Client timeout for HTTP connections." json:"httpClientTimeout,omitempty" toml:"httpClientTimeout,omitempty" yaml:"httpClientTimeout,omitempty" export:"true" loggable:"true"`
 	defaultRuleTpl          *template.Template
 }
 

@@ -9,9 +9,9 @@ import (
 
 // TraefikCmdConfiguration wraps the static configuration and extra parameters.
 type TraefikCmdConfiguration struct {
-	static.Configuration `export:"true"`
+	static.Configuration `export:"true" loggable:"true"`
 	// ConfigFile is the path to the configuration file.
-	ConfigFile string `description:"Configuration file to use. If specified all other flags are ignored." export:"true"`
+	ConfigFile string `description:"Configuration file to use. If specified all other flags are ignored." export:"true" loggable:"true"`
 }
 
 // NewTraefikConfiguration creates a TraefikCmdConfiguration with default values.

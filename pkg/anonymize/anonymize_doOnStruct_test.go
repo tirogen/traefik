@@ -22,17 +22,17 @@ type Carotte struct {
 	Name        string
 	Value       int
 	List        []string
-	EList       []string `export:"true"`
+	EList       []string `export:"true" loggable:"true"`
 	Courgette   Courgette
-	ECourgette  Courgette `export:"true"`
+	ECourgette  Courgette `export:"true" loggable:"true"`
 	Pourgette   *Courgette
-	EPourgette  *Courgette `export:"true"`
+	EPourgette  *Courgette `export:"true" loggable:"true"`
 	Aubergine   map[string]string
-	EAubergine  map[string]string `export:"true"`
+	EAubergine  map[string]string `export:"true" loggable:"true"`
 	SAubergine  map[string]Tomate
-	ESAubergine map[string]Tomate `export:"true"`
+	ESAubergine map[string]Tomate `export:"true" loggable:"true"`
 	PSAubergine map[string]*Tomate
-	EPAubergine map[string]*Tomate `export:"true"`
+	EPAubergine map[string]*Tomate `export:"true" loggable:"true"`
 }
 
 func Test_doOnStruct(t *testing.T) {

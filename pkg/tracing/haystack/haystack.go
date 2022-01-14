@@ -17,11 +17,11 @@ const Name = "haystack"
 type Config struct {
 	LocalAgentHost          string `description:"Sets the Haystack Agent host." json:"localAgentHost,omitempty" toml:"localAgentHost,omitempty" yaml:"localAgentHost,omitempty"`
 	LocalAgentPort          int    `description:"Sets the Haystack Agent port." json:"localAgentPort,omitempty" toml:"localAgentPort,omitempty" yaml:"localAgentPort,omitempty"`
-	GlobalTag               string `description:"Sets a key:value tag on all spans." json:"globalTag,omitempty" toml:"globalTag,omitempty" yaml:"globalTag,omitempty" export:"true"`
-	TraceIDHeaderName       string `description:"Sets the header name used to store the trace ID." json:"traceIDHeaderName,omitempty" toml:"traceIDHeaderName,omitempty" yaml:"traceIDHeaderName,omitempty" export:"true"`
-	ParentIDHeaderName      string `description:"Sets the header name used to store the parent ID." json:"parentIDHeaderName,omitempty" toml:"parentIDHeaderName,omitempty" yaml:"parentIDHeaderName,omitempty" export:"true"`
-	SpanIDHeaderName        string `description:"Sets the header name used to store the span ID." json:"spanIDHeaderName,omitempty" toml:"spanIDHeaderName,omitempty" yaml:"spanIDHeaderName,omitempty" export:"true"`
-	BaggagePrefixHeaderName string `description:"Sets the header name prefix used to store baggage items in a map." json:"baggagePrefixHeaderName,omitempty" toml:"baggagePrefixHeaderName,omitempty" yaml:"baggagePrefixHeaderName,omitempty" export:"true"`
+	GlobalTag               string `description:"Sets a key:value tag on all spans." json:"globalTag,omitempty" toml:"globalTag,omitempty" yaml:"globalTag,omitempty" export:"true" loggable:"true"`
+	TraceIDHeaderName       string `description:"Sets the header name used to store the trace ID." json:"traceIDHeaderName,omitempty" toml:"traceIDHeaderName,omitempty" yaml:"traceIDHeaderName,omitempty" export:"true" loggable:"true"`
+	ParentIDHeaderName      string `description:"Sets the header name used to store the parent ID." json:"parentIDHeaderName,omitempty" toml:"parentIDHeaderName,omitempty" yaml:"parentIDHeaderName,omitempty" export:"true" loggable:"true"`
+	SpanIDHeaderName        string `description:"Sets the header name used to store the span ID." json:"spanIDHeaderName,omitempty" toml:"spanIDHeaderName,omitempty" yaml:"spanIDHeaderName,omitempty" export:"true" loggable:"true"`
+	BaggagePrefixHeaderName string `description:"Sets the header name prefix used to store baggage items in a map." json:"baggagePrefixHeaderName,omitempty" toml:"baggagePrefixHeaderName,omitempty" yaml:"baggagePrefixHeaderName,omitempty" export:"true" loggable:"true"`
 }
 
 // SetDefaults sets the default values.

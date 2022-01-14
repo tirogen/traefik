@@ -3,16 +3,16 @@ package plugins
 // Descriptor The static part of a plugin configuration.
 type Descriptor struct {
 	// ModuleName (required)
-	ModuleName string `description:"plugin's module name." json:"moduleName,omitempty" toml:"moduleName,omitempty" yaml:"moduleName,omitempty" export:"true"`
+	ModuleName string `description:"plugin's module name." json:"moduleName,omitempty" toml:"moduleName,omitempty" yaml:"moduleName,omitempty" export:"true" loggable:"true"`
 
 	// Version (required)
-	Version string `description:"plugin's version." json:"version,omitempty" toml:"version,omitempty" yaml:"version,omitempty" export:"true"`
+	Version string `description:"plugin's version." json:"version,omitempty" toml:"version,omitempty" yaml:"version,omitempty" export:"true" loggable:"true"`
 }
 
 // LocalDescriptor The static part of a local plugin configuration.
 type LocalDescriptor struct {
 	// ModuleName (required)
-	ModuleName string `description:"plugin's module name." json:"moduleName,omitempty" toml:"moduleName,omitempty" yaml:"moduleName,omitempty" export:"true"`
+	ModuleName string `description:"plugin's module name." json:"moduleName,omitempty" toml:"moduleName,omitempty" yaml:"moduleName,omitempty" export:"true" loggable:"true"`
 }
 
 // Manifest The plugin manifest.

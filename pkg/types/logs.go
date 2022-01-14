@@ -21,9 +21,9 @@ const (
 
 // TraefikLog holds the configuration settings for the traefik logger.
 type TraefikLog struct {
-	Level    string `description:"Log level set to traefik logs." json:"level,omitempty" toml:"level,omitempty" yaml:"level,omitempty" export:"true"`
+	Level    string `description:"Log level set to traefik logs." json:"level,omitempty" toml:"level,omitempty" yaml:"level,omitempty" export:"true" loggable:"true"`
 	FilePath string `description:"Traefik log file path. Stdout is used when omitted or empty." json:"filePath,omitempty" toml:"filePath,omitempty" yaml:"filePath,omitempty"`
-	Format   string `description:"Traefik log format: json | common" json:"format,omitempty" toml:"format,omitempty" yaml:"format,omitempty" export:"true"`
+	Format   string `description:"Traefik log format: json | common" json:"format,omitempty" toml:"format,omitempty" yaml:"format,omitempty" export:"true" loggable:"true"`
 }
 
 // SetDefaults sets the default values.
@@ -35,10 +35,10 @@ func (l *TraefikLog) SetDefaults() {
 // AccessLog holds the configuration settings for the access logger (middlewares/accesslog).
 type AccessLog struct {
 	FilePath      string            `description:"Access log file path. Stdout is used when omitted or empty." json:"filePath,omitempty" toml:"filePath,omitempty" yaml:"filePath,omitempty"`
-	Format        string            `description:"Access log format: json | common" json:"format,omitempty" toml:"format,omitempty" yaml:"format,omitempty" export:"true"`
-	Filters       *AccessLogFilters `description:"Access log filters, used to keep only specific access logs." json:"filters,omitempty" toml:"filters,omitempty" yaml:"filters,omitempty" export:"true"`
-	Fields        *AccessLogFields  `description:"AccessLogFields." json:"fields,omitempty" toml:"fields,omitempty" yaml:"fields,omitempty" export:"true"`
-	BufferingSize int64             `description:"Number of access log lines to process in a buffered way." json:"bufferingSize,omitempty" toml:"bufferingSize,omitempty" yaml:"bufferingSize,omitempty" export:"true"`
+	Format        string            `description:"Access log format: json | common" json:"format,omitempty" toml:"format,omitempty" yaml:"format,omitempty" export:"true" loggable:"true"`
+	Filters       *AccessLogFilters `description:"Access log filters, used to keep only specific access logs." json:"filters,omitempty" toml:"filters,omitempty" yaml:"filters,omitempty" export:"true" loggable:"true"`
+	Fields        *AccessLogFields  `description:"AccessLogFields." json:"fields,omitempty" toml:"fields,omitempty" yaml:"fields,omitempty" export:"true" loggable:"true"`
+	BufferingSize int64             `description:"Number of access log lines to process in a buffered way." json:"bufferingSize,omitempty" toml:"bufferingSize,omitempty" yaml:"bufferingSize,omitempty" export:"true" loggable:"true"`
 }
 
 // SetDefaults sets the default values.
@@ -52,22 +52,22 @@ func (l *AccessLog) SetDefaults() {
 
 // AccessLogFilters holds filters configuration.
 type AccessLogFilters struct {
-	StatusCodes   []string       `description:"Keep access logs with status codes in the specified range." json:"statusCodes,omitempty" toml:"statusCodes,omitempty" yaml:"statusCodes,omitempty" export:"true"`
-	RetryAttempts bool           `description:"Keep access logs when at least one retry happened." json:"retryAttempts,omitempty" toml:"retryAttempts,omitempty" yaml:"retryAttempts,omitempty" export:"true"`
-	MinDuration   types.Duration `description:"Keep access logs when request took longer than the specified duration." json:"minDuration,omitempty" toml:"minDuration,omitempty" yaml:"minDuration,omitempty" export:"true"`
+	StatusCodes   []string       `description:"Keep access logs with status codes in the specified range." json:"statusCodes,omitempty" toml:"statusCodes,omitempty" yaml:"statusCodes,omitempty" export:"true" loggable:"true"`
+	RetryAttempts bool           `description:"Keep access logs when at least one retry happened." json:"retryAttempts,omitempty" toml:"retryAttempts,omitempty" yaml:"retryAttempts,omitempty" export:"true" loggable:"true"`
+	MinDuration   types.Duration `description:"Keep access logs when request took longer than the specified duration." json:"minDuration,omitempty" toml:"minDuration,omitempty" yaml:"minDuration,omitempty" export:"true" loggable:"true"`
 }
 
 // FieldHeaders holds configuration for access log headers.
 type FieldHeaders struct {
-	DefaultMode string            `description:"Default mode for fields: keep | drop | redact" json:"defaultMode,omitempty" toml:"defaultMode,omitempty" yaml:"defaultMode,omitempty" export:"true"`
-	Names       map[string]string `description:"Override mode for headers" json:"names,omitempty" toml:"names,omitempty" yaml:"names,omitempty" export:"true"`
+	DefaultMode string            `description:"Default mode for fields: keep | drop | redact" json:"defaultMode,omitempty" toml:"defaultMode,omitempty" yaml:"defaultMode,omitempty" export:"true" loggable:"true"`
+	Names       map[string]string `description:"Override mode for headers" json:"names,omitempty" toml:"names,omitempty" yaml:"names,omitempty" export:"true" loggable:"true"`
 }
 
 // AccessLogFields holds configuration for access log fields.
 type AccessLogFields struct {
-	DefaultMode string            `description:"Default mode for fields: keep | drop" json:"defaultMode,omitempty" toml:"defaultMode,omitempty" yaml:"defaultMode,omitempty"  export:"true"`
-	Names       map[string]string `description:"Override mode for fields" json:"names,omitempty" toml:"names,omitempty" yaml:"names,omitempty" export:"true"`
-	Headers     *FieldHeaders     `description:"Headers to keep, drop or redact" json:"headers,omitempty" toml:"headers,omitempty" yaml:"headers,omitempty" export:"true"`
+	DefaultMode string            `description:"Default mode for fields: keep | drop" json:"defaultMode,omitempty" toml:"defaultMode,omitempty" yaml:"defaultMode,omitempty"  export:"true" loggable:"true"`
+	Names       map[string]string `description:"Override mode for fields" json:"names,omitempty" toml:"names,omitempty" yaml:"names,omitempty" export:"true" loggable:"true"`
+	Headers     *FieldHeaders     `description:"Headers to keep, drop or redact" json:"headers,omitempty" toml:"headers,omitempty" yaml:"headers,omitempty" export:"true" loggable:"true"`
 }
 
 // SetDefaults sets the default values.
