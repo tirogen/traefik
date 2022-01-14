@@ -30,7 +30,7 @@ type data struct {
 
 // Collect anonymous data.
 func Collect(staticConfiguration *static.Configuration) error {
-	anonConfig, err := anonymize.Do(staticConfiguration, false)
+	anonConfig, err := anonymize.Do(staticConfiguration, "export", false)
 	if err != nil {
 		return err
 	}

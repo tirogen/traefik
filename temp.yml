@@ -1,0 +1,27 @@
+http:
+  services:
+    app:
+      weighted:
+        # fallbackService: appv3 #2
+        failoverService: appv3 #4
+        services:
+        - name: appv1
+        - name: appv2
+        - name: appv3
+          fallback: true #1
+
+    appv1:
+      loadBalancer:
+        servers:
+        - url: "http://private-ip-server-1/"
+
+    appv2:
+      loadBalancer:
+        servers:
+        - url: "http://private-ip-server-2/"
+
+    appv3:
+      fallbackService: true #3
+      loadBalancer:
+        servers:
+        - url: "http://private-ip-server-3/"

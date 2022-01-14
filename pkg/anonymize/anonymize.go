@@ -18,7 +18,7 @@ const (
 )
 
 // Do sends configuration.
-func Do(baseConfig interface{}, indent bool) (string, error) {
+func Do(baseConfig interface{}, tag string, indent bool) (string, error) {
 	anomConfig, err := copystructure.Copy(baseConfig)
 	if err != nil {
 		return "", err
@@ -26,7 +26,7 @@ func Do(baseConfig interface{}, indent bool) (string, error) {
 
 	val := reflect.ValueOf(anomConfig)
 
-	err = doOnStruct(val)
+	err = doOnStruct(val, tag)
 	if err != nil {
 		return "", err
 	}
@@ -44,7 +44,7 @@ func doOnJSON(input string) string {
 	return xurls.Relaxed().ReplaceAllString(mailExp.ReplaceAllString(input, maskLarge+"\""), maskLarge)
 }
 
-func doOnStruct(field reflect.Value) error {
+func doOnStruct(field reflect.Value, tag string) error {
 	if field.Type().AssignableTo(reflect.TypeOf(dynamic.PluginConf{})) {
 		resetPlugin(field)
 		return nil
@@ -53,7 +53,7 @@ func doOnStruct(field reflect.Value) error {
 	switch field.Kind() {
 	case reflect.Ptr:
 		if !field.IsNil() {
-			if err := doOnStruct(field.Elem()); err != nil {
+			if err := doOnStruct(field.Elem(), tag); err != nil {
 				return err
 			}
 		}
@@ -65,13 +65,13 @@ func doOnStruct(field reflect.Value) error {
 				continue
 			}
 
-			if stField.Tag.Get("export") == "true" {
+			if stField.Tag.Get(tag) == "true" {
 				// A struct field cannot be set it must be filled as pointer.
 				if fld.Kind() == reflect.Struct {
 					fldPtr := reflect.New(fld.Type())
 					fldPtr.Elem().Set(fld)
 
-					if err := doOnStruct(fldPtr); err != nil {
+					if err := doOnStruct(fldPtr, tag); err != nil {
 						return err
 					}
 
@@ -80,7 +80,7 @@ func doOnStruct(field reflect.Value) error {
 					continue
 				}
 
-				if err := doOnStruct(fld); err != nil {
+				if err := doOnStruct(fld, tag); err != nil {
 					return err
 				}
 			} else if err := reset(fld, stField.Name); err != nil {
@@ -96,7 +96,7 @@ func doOnStruct(field reflect.Value) error {
 				valPtr := reflect.New(val.Type())
 				valPtr.Elem().Set(val)
 
-				if err := doOnStruct(valPtr); err != nil {
+				if err := doOnStruct(valPtr, tag); err != nil {
 					return err
 				}
 
@@ -105,13 +105,13 @@ func doOnStruct(field reflect.Value) error {
 				continue
 			}
 
-			if err := doOnStruct(val); err != nil {
+			if err := doOnStruct(val, tag); err != nil {
 				return err
 			}
 		}
 	case reflect.Slice:
 		for j := 0; j < field.Len(); j++ {
-			if err := doOnStruct(field.Index(j)); err != nil {
+			if err := doOnStruct(field.Index(j), tag); err != nil {
 				return err
 			}
 		}
