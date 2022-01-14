@@ -8,8 +8,8 @@ import (
 
 // Domain holds a domain name with SANs.
 type Domain struct {
-	Main string   `description:"Default subject name." json:"main,omitempty" toml:"main,omitempty" yaml:"main,omitempty"`
-	SANs []string `description:"Subject alternative names." json:"sans,omitempty" toml:"sans,omitempty" yaml:"sans,omitempty"`
+	Main string   `description:"Default subject name." json:"main,omitempty" toml:"main,omitempty" yaml:"main,omitempty" loggable:"true"`
+	SANs []string `description:"Subject alternative names." json:"sans,omitempty" toml:"sans,omitempty" yaml:"sans,omitempty" loggable:"true"`
 }
 
 // ToStrArray convert a domain into an array of strings.

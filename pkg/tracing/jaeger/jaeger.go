@@ -17,10 +17,10 @@ const Name = "jaeger"
 
 // Config provides configuration settings for a jaeger tracer.
 type Config struct {
-	SamplingServerURL          string     `description:"Sets the sampling server URL." json:"samplingServerURL,omitempty" toml:"samplingServerURL,omitempty" yaml:"samplingServerURL,omitempty"`
+	SamplingServerURL          string     `description:"Sets the sampling server URL." json:"samplingServerURL,omitempty" toml:"samplingServerURL,omitempty" yaml:"samplingServerURL,omitempty" loggable:"true"`
 	SamplingType               string     `description:"Sets the sampling type." json:"samplingType,omitempty" toml:"samplingType,omitempty" yaml:"samplingType,omitempty" export:"true" loggable:"true"`
 	SamplingParam              float64    `description:"Sets the sampling parameter." json:"samplingParam,omitempty" toml:"samplingParam,omitempty" yaml:"samplingParam,omitempty" export:"true" loggable:"true"`
-	LocalAgentHostPort         string     `description:"Sets the Jaeger Agent host:port." json:"localAgentHostPort,omitempty" toml:"localAgentHostPort,omitempty" yaml:"localAgentHostPort,omitempty"`
+	LocalAgentHostPort         string     `description:"Sets the Jaeger Agent host:port." json:"localAgentHostPort,omitempty" toml:"localAgentHostPort,omitempty" yaml:"localAgentHostPort,omitempty" loggable:"true"`
 	Gen128Bit                  bool       `description:"Generates 128 bits span IDs." json:"gen128Bit,omitempty" toml:"gen128Bit,omitempty" yaml:"gen128Bit,omitempty" export:"true" loggable:"true"`
 	Propagation                string     `description:"Sets the propagation format (jaeger/b3)." json:"propagation,omitempty" toml:"propagation,omitempty" yaml:"propagation,omitempty" export:"true" loggable:"true"`
 	TraceContextHeaderName     string     `description:"Sets the header name used to store the trace ID." json:"traceContextHeaderName,omitempty" toml:"traceContextHeaderName,omitempty" yaml:"traceContextHeaderName,omitempty" export:"true" loggable:"true"`
@@ -42,7 +42,7 @@ func (c *Config) SetDefaults() {
 
 // Collector provides configuration settings for jaeger collector.
 type Collector struct {
-	Endpoint string `description:"Instructs reporter to send spans to jaeger-collector at this URL." json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	Endpoint string `description:"Instructs reporter to send spans to jaeger-collector at this URL." json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty" loggable:"true"`
 	User     string `description:"User for basic http authentication when sending spans to jaeger-collector." json:"user,omitempty" toml:"user,omitempty" yaml:"user,omitempty"`
 	Password string `description:"Password for basic http authentication when sending spans to jaeger-collector." json:"password,omitempty" toml:"password,omitempty" yaml:"password,omitempty"`
 }

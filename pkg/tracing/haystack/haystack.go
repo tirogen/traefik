@@ -15,8 +15,8 @@ const Name = "haystack"
 
 // Config provides configuration settings for a haystack tracer.
 type Config struct {
-	LocalAgentHost          string `description:"Sets the Haystack Agent host." json:"localAgentHost,omitempty" toml:"localAgentHost,omitempty" yaml:"localAgentHost,omitempty"`
-	LocalAgentPort          int    `description:"Sets the Haystack Agent port." json:"localAgentPort,omitempty" toml:"localAgentPort,omitempty" yaml:"localAgentPort,omitempty"`
+	LocalAgentHost          string `description:"Sets the Haystack Agent host." json:"localAgentHost,omitempty" toml:"localAgentHost,omitempty" yaml:"localAgentHost,omitempty" loggable:"true"`
+	LocalAgentPort          int    `description:"Sets the Haystack Agent port." json:"localAgentPort,omitempty" toml:"localAgentPort,omitempty" yaml:"localAgentPort,omitempty" loggable:"true"`
 	GlobalTag               string `description:"Sets a key:value tag on all spans." json:"globalTag,omitempty" toml:"globalTag,omitempty" yaml:"globalTag,omitempty" export:"true" loggable:"true"`
 	TraceIDHeaderName       string `description:"Sets the header name used to store the trace ID." json:"traceIDHeaderName,omitempty" toml:"traceIDHeaderName,omitempty" yaml:"traceIDHeaderName,omitempty" export:"true" loggable:"true"`
 	ParentIDHeaderName      string `description:"Sets the header name used to store the parent ID." json:"parentIDHeaderName,omitempty" toml:"parentIDHeaderName,omitempty" yaml:"parentIDHeaderName,omitempty" export:"true" loggable:"true"`
