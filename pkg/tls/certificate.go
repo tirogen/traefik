@@ -49,7 +49,7 @@ var (
 // Certificate holds a SSL cert/key pair
 // Certs and Key could be either a file path, or the file content itself.
 type Certificate struct {
-	CertFile FileOrContent `json:"certFile,omitempty" toml:"certFile,omitempty" yaml:"certFile,omitempty"`
+	CertFile FileOrContent `json:"certFile,omitempty" toml:"certFile,omitempty" yaml:"certFile,omitempty" loggable:"true"`
 	KeyFile  FileOrContent `json:"keyFile,omitempty" toml:"keyFile,omitempty" yaml:"keyFile,omitempty"`
 }
 

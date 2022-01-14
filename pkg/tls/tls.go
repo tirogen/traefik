@@ -6,7 +6,7 @@ const certificateHeader = "-----BEGIN CERTIFICATE-----\n"
 
 // ClientAuth defines the parameters of the client authentication part of the TLS connection, if any.
 type ClientAuth struct {
-	CAFiles []FileOrContent `json:"caFiles,omitempty" toml:"caFiles,omitempty" yaml:"caFiles,omitempty"`
+	CAFiles []FileOrContent `json:"caFiles,omitempty" toml:"caFiles,omitempty" yaml:"caFiles,omitempty" loggable:"true"`
 	// ClientAuthType defines the client authentication type to apply.
 	// The available values are: "NoClientCert", "RequestClientCert", "VerifyClientCertIfGiven" and "RequireAndVerifyClientCert".
 	ClientAuthType string `json:"clientAuthType,omitempty" toml:"clientAuthType,omitempty" yaml:"clientAuthType,omitempty" export:"true" loggable:"true"`
@@ -20,7 +20,7 @@ type Options struct {
 	MaxVersion               string     `json:"maxVersion,omitempty" toml:"maxVersion,omitempty" yaml:"maxVersion,omitempty" export:"true" loggable:"true"`
 	CipherSuites             []string   `json:"cipherSuites,omitempty" toml:"cipherSuites,omitempty" yaml:"cipherSuites,omitempty" export:"true" loggable:"true"`
 	CurvePreferences         []string   `json:"curvePreferences,omitempty" toml:"curvePreferences,omitempty" yaml:"curvePreferences,omitempty" export:"true" loggable:"true"`
-	ClientAuth               ClientAuth `json:"clientAuth,omitempty" toml:"clientAuth,omitempty" yaml:"clientAuth,omitempty"`
+	ClientAuth               ClientAuth `json:"clientAuth,omitempty" toml:"clientAuth,omitempty" yaml:"clientAuth,omitempty" loggable:"true"`
 	SniStrict                bool       `json:"sniStrict,omitempty" toml:"sniStrict,omitempty" yaml:"sniStrict,omitempty" export:"true" loggable:"true"`
 	PreferServerCipherSuites bool       `json:"preferServerCipherSuites,omitempty" toml:"preferServerCipherSuites,omitempty" yaml:"preferServerCipherSuites,omitempty" export:"true" loggable:"true"`
 	ALPNProtocols            []string   `json:"alpnProtocols,omitempty" toml:"alpnProtocols,omitempty" yaml:"alpnProtocols,omitempty" export:"true" loggable:"true"`

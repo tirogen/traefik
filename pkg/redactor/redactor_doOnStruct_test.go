@@ -18,11 +18,13 @@ type Tomate struct {
 	Ho string
 }
 
+// FIXME Update testt for loggable
 type Carotte struct {
 	Name        string
 	Value       int
 	List        []string
-	EList       []string `export:"true" loggable:"true"`
+	EList       []string `export:"true"`
+	LList       []string `loggable:"true"`
 	Courgette   Courgette
 	ECourgette  Courgette `export:"true" loggable:"true"`
 	Pourgette   *Courgette

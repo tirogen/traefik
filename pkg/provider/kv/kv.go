@@ -24,7 +24,7 @@ import (
 
 // Provider holds configurations of the provider.
 type Provider struct {
-	RootKey string `description:"Root key used for KV store" json:"rootKey,omitempty" toml:"rootKey,omitempty" yaml:"rootKey,omitempty" export:"true" loggable:"true"`
+	RootKey string `description:"Root key used for KV store" json:"rootKey,omitempty" toml:"rootKey,omitempty" yaml:"rootKey,omitempty" export:"true"` // FIXME an error ?
 
 	Endpoints []string         `description:"KV store endpoints" json:"endpoints,omitempty" toml:"endpoints,omitempty" yaml:"endpoints,omitempty" loggable:"true"`
 	Username  string           `description:"KV Username" json:"username,omitempty" toml:"username,omitempty" yaml:"username,omitempty"`

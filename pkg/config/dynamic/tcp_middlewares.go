@@ -4,7 +4,7 @@ package dynamic
 
 // TCPMiddleware holds the TCPMiddleware configuration.
 type TCPMiddleware struct {
-	IPWhiteList *TCPIPWhiteList `json:"ipWhiteList,omitempty" toml:"ipWhiteList,omitempty" yaml:"ipWhiteList,omitempty" export:"true" loggable:"true"`
+	IPWhiteList *TCPIPWhiteList `json:"ipWhiteList,omitempty" toml:"ipWhiteList,omitempty" yaml:"ipWhiteList,omitempty" export:"true"`
 }
 
 // +k8s:deepcopy-gen=true

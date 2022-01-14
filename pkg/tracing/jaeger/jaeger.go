@@ -17,7 +17,7 @@ const Name = "jaeger"
 
 // Config provides configuration settings for a jaeger tracer.
 type Config struct {
-	SamplingServerURL          string     `description:"Sets the sampling server URL." json:"samplingServerURL,omitempty" toml:"samplingServerURL,omitempty" yaml:"samplingServerURL,omitempty" loggable:"true"`
+	SamplingServerURL          string     `description:"Sets the sampling server URL." json:"samplingServerURL,omitempty" toml:"samplingServerURL,omitempty" yaml:"samplingServerURL,omitempty" loggable:"true"` // FIXME what to do ?
 	SamplingType               string     `description:"Sets the sampling type." json:"samplingType,omitempty" toml:"samplingType,omitempty" yaml:"samplingType,omitempty" export:"true" loggable:"true"`
 	SamplingParam              float64    `description:"Sets the sampling parameter." json:"samplingParam,omitempty" toml:"samplingParam,omitempty" yaml:"samplingParam,omitempty" export:"true" loggable:"true"`
 	LocalAgentHostPort         string     `description:"Sets the Jaeger Agent host:port." json:"localAgentHostPort,omitempty" toml:"localAgentHostPort,omitempty" yaml:"localAgentHostPort,omitempty" loggable:"true"`
