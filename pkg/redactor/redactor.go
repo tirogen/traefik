@@ -1,4 +1,4 @@
-package anonymize
+package censor
 
 import (
 	"encoding/json"
