@@ -20,15 +20,15 @@ const (
 )
 
 func Anonymise(baseConfig interface{}, indent bool) (string, error) {
-	return Do(baseConfig, exportTag, indent)
+	return do(baseConfig, exportTag, false, indent)
 }
 
 func RemoveCredentials(baseConfig interface{}, indent bool) (string, error) {
-	return Do(baseConfig, loggableTag, indent)
+	return do(baseConfig, loggableTag, true, indent)
 }
 
 // Do sends configuration.
-func Do(baseConfig interface{}, tag string, indent bool) (string, error) {
+func do(baseConfig interface{}, tag string, enabledByDefault, indent bool) (string, error) {
 	if tag != loggableTag && tag != exportTag {
 		return "", fmt.Errorf("unsupported tag: %v", tag)
 	}
@@ -39,11 +39,6 @@ func Do(baseConfig interface{}, tag string, indent bool) (string, error) {
 	}
 
 	val := reflect.ValueOf(anomConfig)
-
-	enabledByDefault := false
-	if tag == loggableTag {
-		enabledByDefault = true
-	}
 
 	err = doOnStruct(val, tag, enabledByDefault)
 	if err != nil {

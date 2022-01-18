@@ -464,7 +464,7 @@ func TestDo_dynamicConfiguration(t *testing.T) {
 	expectedConfiguration, err := os.ReadFile("./testdata/anonymized-dynamic-config.json")
 	require.NoError(t, err)
 
-	cleanJSON, err := Do(config, "export", true)
+	cleanJSON, err := do(config, exportTag, false, true)
 	require.NoError(t, err)
 
 	if *updateExpected {
@@ -971,7 +971,7 @@ func TestDo_staticConfiguration(t *testing.T) {
 	expectedConfiguration, err := os.ReadFile("./testdata/anonymized-static-config.json")
 	require.NoError(t, err)
 
-	cleanJSON, err := Do(config, "export", true)
+	cleanJSON, err := do(config, exportTag, false, true)
 	require.NoError(t, err)
 
 	if *updateExpected {
