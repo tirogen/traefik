@@ -1,4 +1,4 @@
-package censor
+package redactor
 
 import (
 	"encoding/json"
@@ -13,12 +13,26 @@ import (
 )
 
 const (
-	maskShort = "xxxx"
-	maskLarge = maskShort + maskShort + maskShort + maskShort + maskShort + maskShort + maskShort + maskShort
+	maskShort   = "xxxx"
+	maskLarge   = maskShort + maskShort + maskShort + maskShort + maskShort + maskShort + maskShort + maskShort
+	loggableTag = "loggable"
+	exportTag   = "export"
 )
+
+func Anonymise(baseConfig interface{}, indent bool) (string, error) {
+	return Do(baseConfig, exportTag, indent)
+}
+
+func RemoveCredentials(baseConfig interface{}, indent bool) (string, error) {
+	return Do(baseConfig, loggableTag, indent)
+}
 
 // Do sends configuration.
 func Do(baseConfig interface{}, tag string, indent bool) (string, error) {
+	if tag != loggableTag && tag != exportTag {
+		return "", fmt.Errorf("unsupported tag: %v", tag)
+	}
+
 	anomConfig, err := copystructure.Copy(baseConfig)
 	if err != nil {
 		return "", err
@@ -26,7 +40,12 @@ func Do(baseConfig interface{}, tag string, indent bool) (string, error) {
 
 	val := reflect.ValueOf(anomConfig)
 
-	err = doOnStruct(val, tag)
+	enabledByDefault := false
+	if tag == loggableTag {
+		enabledByDefault = true
+	}
+
+	err = doOnStruct(val, tag, enabledByDefault)
 	if err != nil {
 		return "", err
 	}
@@ -44,7 +63,7 @@ func doOnJSON(input string) string {
 	return xurls.Relaxed().ReplaceAllString(mailExp.ReplaceAllString(input, maskLarge+"\""), maskLarge)
 }
 
-func doOnStruct(field reflect.Value, tag string) error {
+func doOnStruct(field reflect.Value, tag string, enabledByDefault bool) error {
 	if field.Type().AssignableTo(reflect.TypeOf(dynamic.PluginConf{})) {
 		resetPlugin(field)
 		return nil
@@ -53,7 +72,7 @@ func doOnStruct(field reflect.Value, tag string) error {
 	switch field.Kind() {
 	case reflect.Ptr:
 		if !field.IsNil() {
-			if err := doOnStruct(field.Elem(), tag); err != nil {
+			if err := doOnStruct(field.Elem(), tag, enabledByDefault); err != nil {
 				return err
 			}
 		}
@@ -65,13 +84,19 @@ func doOnStruct(field reflect.Value, tag string) error {
 				continue
 			}
 
-			if stField.Tag.Get(tag) == "true" {
+			if stField.Tag.Get(tag) == "false" {
+				if err := reset(fld, stField.Name); err != nil {
+					return err
+				}
+				continue
+			}
+			if stField.Tag.Get(tag) == "true" || enabledByDefault {
 				// A struct field cannot be set it must be filled as pointer.
 				if fld.Kind() == reflect.Struct {
 					fldPtr := reflect.New(fld.Type())
 					fldPtr.Elem().Set(fld)
 
-					if err := doOnStruct(fldPtr, tag); err != nil {
+					if err := doOnStruct(fldPtr, tag, enabledByDefault); err != nil {
 						return err
 					}
 
@@ -80,10 +105,12 @@ func doOnStruct(field reflect.Value, tag string) error {
 					continue
 				}
 
-				if err := doOnStruct(fld, tag); err != nil {
+				if err := doOnStruct(fld, tag, enabledByDefault); err != nil {
 					return err
 				}
-			} else if err := reset(fld, stField.Name); err != nil {
+				continue
+			}
+			if err := reset(fld, stField.Name); err != nil {
 				return err
 			}
 		}
@@ -96,7 +123,7 @@ func doOnStruct(field reflect.Value, tag string) error {
 				valPtr := reflect.New(val.Type())
 				valPtr.Elem().Set(val)
 
-				if err := doOnStruct(valPtr, tag); err != nil {
+				if err := doOnStruct(valPtr, tag, enabledByDefault); err != nil {
 					return err
 				}
 
@@ -105,13 +132,13 @@ func doOnStruct(field reflect.Value, tag string) error {
 				continue
 			}
 
-			if err := doOnStruct(val, tag); err != nil {
+			if err := doOnStruct(val, tag, enabledByDefault); err != nil {
 				return err
 			}
 		}
 	case reflect.Slice:
 		for j := 0; j < field.Len(); j++ {
-			if err := doOnStruct(field.Index(j), tag); err != nil {
+			if err := doOnStruct(field.Index(j), tag, enabledByDefault); err != nil {
 				return err
 			}
 		}
