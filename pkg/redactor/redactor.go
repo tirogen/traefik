@@ -19,7 +19,7 @@ const (
 	exportTag   = "export"
 )
 
-func Anonymise(baseConfig interface{}, indent bool) (string, error) {
+func Anonymize(baseConfig interface{}, indent bool) (string, error) {
 	return do(baseConfig, exportTag, false, indent)
 }
 
