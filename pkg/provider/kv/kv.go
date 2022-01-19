@@ -24,11 +24,11 @@ import (
 
 // Provider holds configurations of the provider.
 type Provider struct {
-	RootKey string `description:"Root key used for KV store" json:"rootKey,omitempty" toml:"rootKey,omitempty" yaml:"rootKey,omitempty" export:"true"` // FIXME an error ?
+	RootKey string `description:"Root key used for KV store" json:"rootKey,omitempty" toml:"rootKey,omitempty" yaml:"rootKey,omitempty" loggable:"false"`
 
 	Endpoints []string         `description:"KV store endpoints" json:"endpoints,omitempty" toml:"endpoints,omitempty" yaml:"endpoints,omitempty" loggable:"true"`
-	Username  string           `description:"KV Username" json:"username,omitempty" toml:"username,omitempty" yaml:"username,omitempty"`
-	Password  string           `description:"KV Password" json:"password,omitempty" toml:"password,omitempty" yaml:"password,omitempty"`
+	Username  string           `description:"KV Username" json:"username,omitempty" toml:"username,omitempty" yaml:"username,omitempty" loggable:"false"`
+	Password  string           `description:"KV Password" json:"password,omitempty" toml:"password,omitempty" yaml:"password,omitempty" loggable:"false"`
 	TLS       *types.ClientTLS `description:"Enable TLS support" json:"tls,omitempty" toml:"tls,omitempty" yaml:"tls,omitempty" export:"true" loggable:"true"`
 
 	storeType store.Backend
