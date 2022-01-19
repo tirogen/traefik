@@ -17,15 +17,15 @@ const Name = "jaeger"
 
 // Config provides configuration settings for a jaeger tracer.
 type Config struct {
-	SamplingServerURL          string     `description:"Sets the sampling server URL." json:"samplingServerURL,omitempty" toml:"samplingServerURL,omitempty" yaml:"samplingServerURL,omitempty" loggable:"true"` // FIXME what to do ?
-	SamplingType               string     `description:"Sets the sampling type." json:"samplingType,omitempty" toml:"samplingType,omitempty" yaml:"samplingType,omitempty" export:"true" loggable:"true"`
-	SamplingParam              float64    `description:"Sets the sampling parameter." json:"samplingParam,omitempty" toml:"samplingParam,omitempty" yaml:"samplingParam,omitempty" export:"true" loggable:"true"`
-	LocalAgentHostPort         string     `description:"Sets the Jaeger Agent host:port." json:"localAgentHostPort,omitempty" toml:"localAgentHostPort,omitempty" yaml:"localAgentHostPort,omitempty" loggable:"true"`
-	Gen128Bit                  bool       `description:"Generates 128 bits span IDs." json:"gen128Bit,omitempty" toml:"gen128Bit,omitempty" yaml:"gen128Bit,omitempty" export:"true" loggable:"true"`
-	Propagation                string     `description:"Sets the propagation format (jaeger/b3)." json:"propagation,omitempty" toml:"propagation,omitempty" yaml:"propagation,omitempty" export:"true" loggable:"true"`
-	TraceContextHeaderName     string     `description:"Sets the header name used to store the trace ID." json:"traceContextHeaderName,omitempty" toml:"traceContextHeaderName,omitempty" yaml:"traceContextHeaderName,omitempty" export:"true" loggable:"true"`
-	Collector                  *Collector `description:"Defines the collector information." json:"collector,omitempty" toml:"collector,omitempty" yaml:"collector,omitempty" export:"true" loggable:"true"`
-	DisableAttemptReconnecting bool       `description:"Disables the periodic re-resolution of the agent's hostname and reconnection if there was a change." json:"disableAttemptReconnecting,omitempty" toml:"disableAttemptReconnecting,omitempty" yaml:"disableAttemptReconnecting,omitempty" export:"true" loggable:"true"`
+	SamplingServerURL          string     `description:"Sets the sampling server URL." json:"samplingServerURL,omitempty" toml:"samplingServerURL,omitempty" yaml:"samplingServerURL,omitempty"` // FIXME what to do ?
+	SamplingType               string     `description:"Sets the sampling type." json:"samplingType,omitempty" toml:"samplingType,omitempty" yaml:"samplingType,omitempty" export:"true"`
+	SamplingParam              float64    `description:"Sets the sampling parameter." json:"samplingParam,omitempty" toml:"samplingParam,omitempty" yaml:"samplingParam,omitempty" export:"true"`
+	LocalAgentHostPort         string     `description:"Sets the Jaeger Agent host:port." json:"localAgentHostPort,omitempty" toml:"localAgentHostPort,omitempty" yaml:"localAgentHostPort,omitempty"`
+	Gen128Bit                  bool       `description:"Generates 128 bits span IDs." json:"gen128Bit,omitempty" toml:"gen128Bit,omitempty" yaml:"gen128Bit,omitempty" export:"true"`
+	Propagation                string     `description:"Sets the propagation format (jaeger/b3)." json:"propagation,omitempty" toml:"propagation,omitempty" yaml:"propagation,omitempty" export:"true"`
+	TraceContextHeaderName     string     `description:"Sets the header name used to store the trace ID." json:"traceContextHeaderName,omitempty" toml:"traceContextHeaderName,omitempty" yaml:"traceContextHeaderName,omitempty" export:"true"`
+	Collector                  *Collector `description:"Defines the collector information." json:"collector,omitempty" toml:"collector,omitempty" yaml:"collector,omitempty" export:"true"`
+	DisableAttemptReconnecting bool       `description:"Disables the periodic re-resolution of the agent's hostname and reconnection if there was a change." json:"disableAttemptReconnecting,omitempty" toml:"disableAttemptReconnecting,omitempty" yaml:"disableAttemptReconnecting,omitempty" export:"true"`
 }
 
 // SetDefaults sets the default values.
@@ -42,7 +42,7 @@ func (c *Config) SetDefaults() {
 
 // Collector provides configuration settings for jaeger collector.
 type Collector struct {
-	Endpoint string `description:"Instructs reporter to send spans to jaeger-collector at this URL." json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty" loggable:"true"`
+	Endpoint string `description:"Instructs reporter to send spans to jaeger-collector at this URL." json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty"`
 	User     string `description:"User for basic http authentication when sending spans to jaeger-collector." json:"user,omitempty" toml:"user,omitempty" yaml:"user,omitempty" loggable:"false"`
 	Password string `description:"Password for basic http authentication when sending spans to jaeger-collector." json:"password,omitempty" toml:"password,omitempty" yaml:"password,omitempty" loggable:"false"`
 }
