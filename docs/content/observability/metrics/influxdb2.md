@@ -53,7 +53,7 @@ InfluxDB token (can be obtained from InfluxDB instance web UI). Mandatory for co
 ```yaml tab="File (YAML)"
 metrics:
   influxDB2:
-    token: "secret"
+    token: secret
 ```
 
 ```toml tab="File (TOML)"
@@ -63,7 +63,7 @@ metrics:
 ```
 
 ```bash tab="CLI"
---metrics.influxdb2.token="secret"
+--metrics.influxdb2.token=secret
 ```
 
 #### `org`
@@ -75,7 +75,7 @@ InfluxDB org where Traefik metrics will be stored. Must not be left blank, neces
 ```yaml tab="File (YAML)"
 metrics:
   influxDB2:
-    org: "my-org"
+    org: my-org
 ```
 
 ```toml tab="File (TOML)"
@@ -85,7 +85,7 @@ metrics:
 ```
 
 ```bash tab="CLI"
---metrics.influxdb2.org="my-org"
+--metrics.influxdb2.org=my-org
 ```
 
 #### `bucket`
@@ -97,7 +97,7 @@ InfluxDB bucket where Traefik metrics will be stored. Must not be left blank, ne
 ```yaml tab="File (YAML)"
 metrics:
   influxDB2:
-    bucket: "my-bucket"
+    bucket: my-bucket
 ```
 
 ```toml tab="File (TOML)"
@@ -107,7 +107,7 @@ metrics:
 ```
 
 ```bash tab="CLI"
---metrics.influxdb2.bucket="my-bucket"
+--metrics.influxdb2.bucket=my-bucket
 ```
 
 #### `addEntryPointsLabels`
@@ -134,7 +134,7 @@ metrics:
 
 #### `addRoutersLabels`
 
-_Optional, Default=true_
+_Optional, Default=false_
 
 Enable metrics on routers.
 
