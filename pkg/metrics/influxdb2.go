@@ -19,28 +19,6 @@ var (
 	influxDB2WriteAPI api.WriteAPI
 )
 
-const (
-	influxDB2MetricsServiceReqsName        = "service_requests_total"
-	influxDB2MetricsServiceReqsTLSName     = "service_requests_tls_total"
-	influxDB2MetricsServiceLatencyName     = "service_request_duration"
-	influxDB2RetriesTotalName              = "service_retries_total"
-	influxDB2ConfigReloadsName             = "config_reload_total"
-	influxDB2ConfigReloadsFailureName      = influxDBConfigReloadsName + "_failure"
-	influxDB2LastConfigReloadSuccessName   = "config_reload_lastSuccessTimestamp"
-	influxDB2LastConfigReloadFailureName   = "config_reload_lastFailureTimestamp"
-	influxDB2EntryPointReqsName            = "entrypoint_requests_total"
-	influxDB2EntryPointReqsTLSName         = "entrypoint_requests_tls_total"
-	influxDB2EntryPointReqDurationName     = "entrypoint_request_duration"
-	influxDB2EntryPointOpenConnsName       = "entrypoint_connections_open"
-	influxDB2RouterReqsName                = "router_requests_total"
-	influxDB2RouterReqsTLSName             = "router_requests_tls_total"
-	influxDB2RouterReqsDurationName        = "router_request_duration"
-	influxDB2RouterOpenConnsName           = "router_connections_open"
-	influxDB2OpenConnsName                 = "service_connections_open"
-	influxDB2ServerUpName                  = "service_server_up"
-	influxDB2TLSCertsNotAfterTimestampName = "tls_certs_notAfterTimestamp"
-)
-
 // RegisterInfluxDB2 creates metrics exporter for InfluxDB2.
 func RegisterInfluxDB2(ctx context.Context, config *types.InfluxDB2) Registry {
 	if influxDB2Client == nil {
@@ -49,52 +27,51 @@ func RegisterInfluxDB2(ctx context.Context, config *types.InfluxDB2) Registry {
 		options = options.SetBatchSize(config.BatchSize)
 		options = options.SetFlushInterval(flushMs)
 		influxDB2Client = influxdb2.NewClientWithOptions(config.Address, config.Token, options)
-		if influxDB2Client == nil {
+		if influxDB2Client == nil { // FIXME seems that it does never happen
 			log.FromContext(ctx).Error("Failed to connect to InfluxDB v2")
 			return nil
 		}
 
 		influxDB2WriteAPI = influxDB2Client.WriteAPI(config.Org, config.Bucket)
-		if influxDB2WriteAPI == nil {
+		if influxDB2WriteAPI == nil { // FIXME seems that it does never happen
 			log.FromContext(ctx).Error("Failed to open InfluxDB v2 bucket")
 			influxDB2Client.Close()
 			influxDB2Client = nil
-			return nil
 		}
 	}
 
 	registry := &standardRegistry{
-		configReloadsCounter:           newInfluxDB2Counter(influxDB2ConfigReloadsName),
-		configReloadsFailureCounter:    newInfluxDB2Counter(influxDB2ConfigReloadsFailureName),
-		lastConfigReloadSuccessGauge:   newInfluxDB2Gauge(influxDB2LastConfigReloadSuccessName),
-		lastConfigReloadFailureGauge:   newInfluxDB2Gauge(influxDB2LastConfigReloadFailureName),
-		tlsCertsNotAfterTimestampGauge: newInfluxDB2Gauge(influxDB2TLSCertsNotAfterTimestampName),
+		configReloadsCounter:           newInfluxDB2Counter(configReloadsTotalName),
+		configReloadsFailureCounter:    newInfluxDB2Counter(configReloadsFailuresTotalName),
+		lastConfigReloadSuccessGauge:   newInfluxDB2Gauge(configLastReloadSuccessName),
+		lastConfigReloadFailureGauge:   newInfluxDB2Gauge(configLastReloadFailureName),
+		tlsCertsNotAfterTimestampGauge: newInfluxDB2Gauge(tlsCertsNotAfterTimestamp),
 	}
 
 	if config.AddEntryPointsLabels {
 		registry.epEnabled = config.AddEntryPointsLabels
-		registry.entryPointReqsCounter = newInfluxDB2Counter(influxDB2EntryPointReqsName)
-		registry.entryPointReqsTLSCounter = newInfluxDB2Counter(influxDB2EntryPointReqsTLSName)
-		registry.entryPointReqDurationHistogram, _ = NewHistogramWithScale(newInfluxDB2Histogram(influxDB2EntryPointReqDurationName), time.Second)
-		registry.entryPointOpenConnsGauge = newInfluxDB2Gauge(influxDB2EntryPointOpenConnsName)
+		registry.entryPointReqsCounter = newInfluxDB2Counter(entryPointReqsTotalName)
+		registry.entryPointReqsTLSCounter = newInfluxDB2Counter(entryPointReqsTLSTotalName)
+		registry.entryPointReqDurationHistogram, _ = NewHistogramWithScale(newInfluxDB2Histogram(entryPointReqDurationName), time.Second)
+		registry.entryPointOpenConnsGauge = newInfluxDB2Gauge(entryPointOpenConnsName)
 	}
 
 	if config.AddRoutersLabels {
 		registry.routerEnabled = config.AddRoutersLabels
-		registry.routerReqsCounter = newInfluxDB2Counter(influxDB2RouterReqsName)
-		registry.routerReqsTLSCounter = newInfluxDB2Counter(influxDB2RouterReqsTLSName)
-		registry.routerReqDurationHistogram, _ = NewHistogramWithScale(newInfluxDB2Histogram(influxDB2RouterReqsDurationName), time.Second)
-		registry.routerOpenConnsGauge = newInfluxDB2Gauge(influxDB2RouterOpenConnsName)
+		registry.routerReqsCounter = newInfluxDB2Counter(routerReqsTotalName)
+		registry.routerReqsTLSCounter = newInfluxDB2Counter(routerReqsTLSTotalName)
+		registry.routerReqDurationHistogram, _ = NewHistogramWithScale(newInfluxDB2Histogram(routerReqDurationName), time.Second)
+		registry.routerOpenConnsGauge = newInfluxDB2Gauge(routerOpenConnsName)
 	}
 
 	if config.AddServicesLabels {
 		registry.svcEnabled = config.AddServicesLabels
-		registry.serviceReqsCounter = newInfluxDB2Counter(influxDB2MetricsServiceReqsName)
-		registry.serviceReqsTLSCounter = newInfluxDB2Counter(influxDB2MetricsServiceReqsTLSName)
-		registry.serviceReqDurationHistogram, _ = NewHistogramWithScale(newInfluxDB2Histogram(influxDB2MetricsServiceLatencyName), time.Second)
-		registry.serviceRetriesCounter = newInfluxDB2Counter(influxDB2RetriesTotalName)
-		registry.serviceOpenConnsGauge = newInfluxDB2Gauge(influxDB2OpenConnsName)
-		registry.serviceServerUpGauge = newInfluxDB2Gauge(influxDB2ServerUpName)
+		registry.serviceReqsCounter = newInfluxDB2Counter(serviceReqsTotalName)
+		registry.serviceReqsTLSCounter = newInfluxDB2Counter(serviceReqsTLSTotalName)
+		registry.serviceReqDurationHistogram, _ = NewHistogramWithScale(newInfluxDB2Histogram(serviceReqDurationName), time.Second)
+		registry.serviceRetriesCounter = newInfluxDB2Counter(serviceRetriesTotalName)
+		registry.serviceOpenConnsGauge = newInfluxDB2Gauge(serviceOpenConnsName)
+		registry.serviceServerUpGauge = newInfluxDB2Gauge(serviceServerUpName)
 	}
 
 	return registry
@@ -102,14 +79,15 @@ func RegisterInfluxDB2(ctx context.Context, config *types.InfluxDB2) Registry {
 
 // StopInfluxDB2 flushes and removes InfluxDB2 client and WriteAPI.
 func StopInfluxDB2() {
-	if influxDB2WriteAPI != nil {
-		influxDB2WriteAPI.Flush()
-	}
 	if influxDB2Client != nil {
 		influxDB2Client.Close()
 	}
-	influxDB2WriteAPI = nil
 	influxDB2Client = nil
+
+	if influxDB2WriteAPI != nil {
+		influxDB2WriteAPI.Flush()
+	}
+	influxDB2WriteAPI = nil
 }
 
 func sendInfluxDB2(name string, labels []string, value interface{}) {
@@ -123,7 +101,9 @@ func sendInfluxDB2(name string, labels []string, value interface{}) {
 		}
 		tags[labels[i]] = labels[i+1]
 	}
+
 	fields[name] = value
+
 	p := influxdb2.NewPoint("traefik", tags, fields, time.Now())
 	influxDB2WriteAPI.WritePoint(p)
 }

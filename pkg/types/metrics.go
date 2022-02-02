@@ -123,9 +123,8 @@ type InfluxDB2 struct {
 func (i *InfluxDB2) SetDefaults() {
 	i.Address = "http://localhost:8086"
 	i.BatchSize = 10
-	i.PushInterval = types.Duration(30 * time.Second)
+	i.PushInterval = types.Duration(10 * time.Second)
 	i.AddEntryPointsLabels = true
-	i.AddRoutersLabels = true
 	i.AddServicesLabels = true
 }
 

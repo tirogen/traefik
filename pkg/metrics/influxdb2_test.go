@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
+	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api"
@@ -12,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"github.com/influxdata/influxdb-client-go/v2/domain"
 	"github.com/stretchr/testify/assert"
+	ptypes "github.com/traefik/paerser/types"
 	"github.com/traefik/traefik/v2/pkg/types"
 )
 
@@ -19,9 +21,7 @@ func TestInfluxDB2(t *testing.T) {
 	influxDB2Client = &mockInfluxDB2Client{}
 	influxDB2WriteAPI = &mockInfluxDB2WriteAPI{}
 
-	c := &types.InfluxDB2{}
-	c.SetDefaults()
-	influxDB2Registry := RegisterInfluxDB2(context.Background(), c)
+	influxDB2Registry := RegisterInfluxDB2(context.Background(), &types.InfluxDB2{Address: "http://localhost:8086", PushInterval: ptypes.Duration(time.Second), AddEntryPointsLabels: true, AddRoutersLabels: true, AddServicesLabels: true})
 	defer StopInfluxDB2()
 
 	if !influxDB2Registry.IsEpEnabled() || !influxDB2Registry.IsRouterEnabled() || !influxDB2Registry.IsSvcEnabled() {
@@ -34,13 +34,13 @@ func TestInfluxDB2(t *testing.T) {
 	influxDB2Registry.LastConfigReloadFailureGauge().Set(1)
 
 	assert.Equal(t, 4, len(mockInfluxDB2Points))
-	assert.Equal(t, influxDB2ConfigReloadsName, mockInfluxDB2Points[0].FieldList()[0].Key)
+	assert.Equal(t, configReloadsTotalName, mockInfluxDB2Points[0].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[0].FieldList()[0].Value)
-	assert.Equal(t, influxDB2ConfigReloadsFailureName, mockInfluxDB2Points[1].FieldList()[0].Key)
+	assert.Equal(t, configReloadsFailuresTotalName, mockInfluxDB2Points[1].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[1].FieldList()[0].Value)
-	assert.Equal(t, influxDB2LastConfigReloadSuccessName, mockInfluxDB2Points[2].FieldList()[0].Key)
+	assert.Equal(t, configLastReloadSuccessName, mockInfluxDB2Points[2].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[2].FieldList()[0].Value)
-	assert.Equal(t, influxDB2LastConfigReloadFailureName, mockInfluxDB2Points[3].FieldList()[0].Key)
+	assert.Equal(t, configLastReloadFailureName, mockInfluxDB2Points[3].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[3].FieldList()[0].Value)
 
 	mockInfluxDB2Points = make([]*write.Point, 0)
@@ -48,7 +48,7 @@ func TestInfluxDB2(t *testing.T) {
 	influxDB2Registry.TLSCertsNotAfterTimestampGauge().With("key", "value").Set(1)
 
 	assert.Equal(t, 1, len(mockInfluxDB2Points))
-	assert.Equal(t, influxDB2TLSCertsNotAfterTimestampName, mockInfluxDB2Points[0].FieldList()[0].Key)
+	assert.Equal(t, tlsCertsNotAfterTimestamp, mockInfluxDB2Points[0].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[0].FieldList()[0].Value)
 	assert.Equal(t, "key", mockInfluxDB2Points[0].TagList()[0].Key)
 	assert.Equal(t, "value", mockInfluxDB2Points[0].TagList()[0].Value)
@@ -62,7 +62,7 @@ func TestInfluxDB2(t *testing.T) {
 
 	assert.Equal(t, 4, len(mockInfluxDB2Points))
 
-	assert.Equal(t, influxDB2EntryPointReqsName, mockInfluxDB2Points[0].FieldList()[0].Key)
+	assert.Equal(t, entryPointReqsTotalName, mockInfluxDB2Points[0].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[0].FieldList()[0].Value)
 	// Tags are sorted alphabetically while being processed
 	assert.Equal(t, "code", mockInfluxDB2Points[0].TagList()[0].Key)
@@ -72,7 +72,7 @@ func TestInfluxDB2(t *testing.T) {
 	assert.Equal(t, "method", mockInfluxDB2Points[0].TagList()[2].Key)
 	assert.Equal(t, "GET", mockInfluxDB2Points[0].TagList()[2].Value)
 
-	assert.Equal(t, influxDB2EntryPointReqsTLSName, mockInfluxDB2Points[1].FieldList()[0].Key)
+	assert.Equal(t, entryPointReqsTLSTotalName, mockInfluxDB2Points[1].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[1].FieldList()[0].Value)
 	assert.Equal(t, "entrypoint", mockInfluxDB2Points[1].TagList()[0].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[1].TagList()[0].Value)
@@ -81,12 +81,12 @@ func TestInfluxDB2(t *testing.T) {
 	assert.Equal(t, "tls_version", mockInfluxDB2Points[1].TagList()[2].Key)
 	assert.Equal(t, "foo", mockInfluxDB2Points[1].TagList()[2].Value)
 
-	assert.Equal(t, influxDB2EntryPointReqDurationName, mockInfluxDB2Points[2].FieldList()[0].Key)
+	assert.Equal(t, entryPointReqDurationName, mockInfluxDB2Points[2].FieldList()[0].Key)
 	assert.Equal(t, 10000.0, mockInfluxDB2Points[2].FieldList()[0].Value)
 	assert.Equal(t, "entrypoint", mockInfluxDB2Points[2].TagList()[0].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[2].TagList()[0].Value)
 
-	assert.Equal(t, influxDB2EntryPointOpenConnsName, mockInfluxDB2Points[3].FieldList()[0].Key)
+	assert.Equal(t, entryPointOpenConnsName, mockInfluxDB2Points[3].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[3].FieldList()[0].Value)
 	assert.Equal(t, "entrypoint", mockInfluxDB2Points[3].TagList()[0].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[3].TagList()[0].Value)
@@ -101,7 +101,7 @@ func TestInfluxDB2(t *testing.T) {
 
 	assert.Equal(t, 5, len(mockInfluxDB2Points))
 
-	assert.Equal(t, influxDB2RouterReqsName, mockInfluxDB2Points[0].FieldList()[0].Key)
+	assert.Equal(t, routerReqsTotalName, mockInfluxDB2Points[0].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[0].FieldList()[0].Value)
 	assert.Equal(t, "code", mockInfluxDB2Points[0].TagList()[0].Key)
 	assert.Equal(t, "404", mockInfluxDB2Points[0].TagList()[0].Value)
@@ -112,7 +112,7 @@ func TestInfluxDB2(t *testing.T) {
 	assert.Equal(t, "service", mockInfluxDB2Points[0].TagList()[3].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[0].TagList()[3].Value)
 
-	assert.Equal(t, influxDB2RouterReqsName, mockInfluxDB2Points[1].FieldList()[0].Key)
+	assert.Equal(t, routerReqsTotalName, mockInfluxDB2Points[1].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[1].FieldList()[0].Value)
 	assert.Equal(t, "code", mockInfluxDB2Points[1].TagList()[0].Key)
 	assert.Equal(t, "200", mockInfluxDB2Points[1].TagList()[0].Value)
@@ -123,7 +123,7 @@ func TestInfluxDB2(t *testing.T) {
 	assert.Equal(t, "service", mockInfluxDB2Points[1].TagList()[3].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[1].TagList()[3].Value)
 
-	assert.Equal(t, influxDB2RouterReqsTLSName, mockInfluxDB2Points[2].FieldList()[0].Key)
+	assert.Equal(t, routerReqsTLSTotalName, mockInfluxDB2Points[2].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[2].FieldList()[0].Value)
 	assert.Equal(t, "router", mockInfluxDB2Points[2].TagList()[0].Key)
 	assert.Equal(t, "demo", mockInfluxDB2Points[2].TagList()[0].Value)
@@ -134,7 +134,7 @@ func TestInfluxDB2(t *testing.T) {
 	assert.Equal(t, "tls_version", mockInfluxDB2Points[2].TagList()[3].Key)
 	assert.Equal(t, "foo", mockInfluxDB2Points[2].TagList()[3].Value)
 
-	assert.Equal(t, influxDB2RouterReqsDurationName, mockInfluxDB2Points[3].FieldList()[0].Key)
+	assert.Equal(t, routerReqDurationName, mockInfluxDB2Points[3].FieldList()[0].Key)
 	assert.Equal(t, 10000.0, mockInfluxDB2Points[3].FieldList()[0].Value)
 	assert.Equal(t, "code", mockInfluxDB2Points[3].TagList()[0].Key)
 	assert.Equal(t, "200", mockInfluxDB2Points[3].TagList()[0].Value)
@@ -143,7 +143,8 @@ func TestInfluxDB2(t *testing.T) {
 	assert.Equal(t, "service", mockInfluxDB2Points[3].TagList()[2].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[3].TagList()[2].Value)
 
-	assert.Equal(t, influxDB2RouterOpenConnsName, mockInfluxDB2Points[4].FieldList()[0].Key)
+	assert.Equal(t, routerOpenConnsName, mockInfluxDB2Points[4].FieldList()[0].Key)
+	t.Logf("%+v\n", mockInfluxDB2Points[4].TagList()[0])
 	assert.Equal(t, 1.0, mockInfluxDB2Points[4].FieldList()[0].Value)
 	assert.Equal(t, "router", mockInfluxDB2Points[4].TagList()[0].Key)
 	assert.Equal(t, "demo", mockInfluxDB2Points[4].TagList()[0].Value)
@@ -160,7 +161,7 @@ func TestInfluxDB2(t *testing.T) {
 
 	assert.Equal(t, 5, len(mockInfluxDB2Points))
 
-	assert.Equal(t, influxDB2MetricsServiceReqsName, mockInfluxDB2Points[0].FieldList()[0].Key)
+	assert.Equal(t, serviceReqsTotalName, mockInfluxDB2Points[0].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[0].FieldList()[0].Value)
 	assert.Equal(t, "code", mockInfluxDB2Points[0].TagList()[0].Key)
 	assert.Equal(t, "200", mockInfluxDB2Points[0].TagList()[0].Value)
@@ -169,7 +170,7 @@ func TestInfluxDB2(t *testing.T) {
 	assert.Equal(t, "service", mockInfluxDB2Points[0].TagList()[2].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[0].TagList()[2].Value)
 
-	assert.Equal(t, influxDB2MetricsServiceReqsName, mockInfluxDB2Points[1].FieldList()[0].Key)
+	assert.Equal(t, serviceReqsTotalName, mockInfluxDB2Points[1].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[1].FieldList()[0].Value)
 	assert.Equal(t, "code", mockInfluxDB2Points[1].TagList()[0].Key)
 	assert.Equal(t, "404", mockInfluxDB2Points[1].TagList()[0].Value)
@@ -178,7 +179,7 @@ func TestInfluxDB2(t *testing.T) {
 	assert.Equal(t, "service", mockInfluxDB2Points[1].TagList()[2].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[1].TagList()[2].Value)
 
-	assert.Equal(t, influxDB2MetricsServiceReqsTLSName, mockInfluxDB2Points[2].FieldList()[0].Key)
+	assert.Equal(t, serviceReqsTLSTotalName, mockInfluxDB2Points[2].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[2].FieldList()[0].Value)
 	assert.Equal(t, "service", mockInfluxDB2Points[2].TagList()[0].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[2].TagList()[0].Value)
@@ -187,14 +188,14 @@ func TestInfluxDB2(t *testing.T) {
 	assert.Equal(t, "tls_version", mockInfluxDB2Points[2].TagList()[2].Key)
 	assert.Equal(t, "foo", mockInfluxDB2Points[2].TagList()[2].Value)
 
-	assert.Equal(t, influxDB2MetricsServiceLatencyName, mockInfluxDB2Points[3].FieldList()[0].Key)
+	assert.Equal(t, serviceReqDurationName, mockInfluxDB2Points[3].FieldList()[0].Key)
 	assert.Equal(t, 10000.0, mockInfluxDB2Points[3].FieldList()[0].Value)
 	assert.Equal(t, "code", mockInfluxDB2Points[3].TagList()[0].Key)
 	assert.Equal(t, "200", mockInfluxDB2Points[3].TagList()[0].Value)
 	assert.Equal(t, "service", mockInfluxDB2Points[3].TagList()[1].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[3].TagList()[1].Value)
 
-	assert.Equal(t, influxDB2ServerUpName, mockInfluxDB2Points[4].FieldList()[0].Key)
+	assert.Equal(t, serviceServerUpName, mockInfluxDB2Points[4].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[4].FieldList()[0].Value)
 	assert.Equal(t, "service", mockInfluxDB2Points[4].TagList()[0].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[4].TagList()[0].Value)
@@ -206,15 +207,15 @@ func TestInfluxDB2(t *testing.T) {
 	influxDB2Registry.ServiceRetriesCounter().With("service", "test").Add(1)
 	influxDB2Registry.ServiceRetriesCounter().With("service", "test").Add(1)
 	influxDB2Registry.ServiceRetriesCounter().With("service", "foobar").Add(1)
-	assert.Equal(t, influxDB2RetriesTotalName, mockInfluxDB2Points[0].FieldList()[0].Key)
+	assert.Equal(t, serviceRetriesTotalName, mockInfluxDB2Points[0].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[0].FieldList()[0].Value)
 	assert.Equal(t, "service", mockInfluxDB2Points[0].TagList()[0].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[0].TagList()[0].Value)
-	assert.Equal(t, influxDB2RetriesTotalName, mockInfluxDB2Points[1].FieldList()[0].Key)
+	assert.Equal(t, serviceRetriesTotalName, mockInfluxDB2Points[1].FieldList()[0].Key)
 	assert.Equal(t, 2.0, mockInfluxDB2Points[1].FieldList()[0].Value)
 	assert.Equal(t, "service", mockInfluxDB2Points[1].TagList()[0].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[1].TagList()[0].Value)
-	assert.Equal(t, influxDB2RetriesTotalName, mockInfluxDB2Points[2].FieldList()[0].Key)
+	assert.Equal(t, serviceRetriesTotalName, mockInfluxDB2Points[2].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[2].FieldList()[0].Value)
 	assert.Equal(t, "service", mockInfluxDB2Points[2].TagList()[0].Key)
 	assert.Equal(t, "foobar", mockInfluxDB2Points[2].TagList()[0].Value)
@@ -224,15 +225,15 @@ func TestInfluxDB2(t *testing.T) {
 	influxDB2Registry.ServiceOpenConnsGauge().With("service", "test").Add(1)
 	influxDB2Registry.ServiceOpenConnsGauge().With("service", "test").Add(1)
 	influxDB2Registry.ServiceOpenConnsGauge().With("service", "foobar").Add(1)
-	assert.Equal(t, influxDB2OpenConnsName, mockInfluxDB2Points[0].FieldList()[0].Key)
+	assert.Equal(t, serviceOpenConnsName, mockInfluxDB2Points[0].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[0].FieldList()[0].Value)
 	assert.Equal(t, "service", mockInfluxDB2Points[0].TagList()[0].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[0].TagList()[0].Value)
-	assert.Equal(t, influxDB2OpenConnsName, mockInfluxDB2Points[1].FieldList()[0].Key)
+	assert.Equal(t, serviceOpenConnsName, mockInfluxDB2Points[1].FieldList()[0].Key)
 	assert.Equal(t, 2.0, mockInfluxDB2Points[1].FieldList()[0].Value)
 	assert.Equal(t, "service", mockInfluxDB2Points[1].TagList()[0].Key)
 	assert.Equal(t, "test", mockInfluxDB2Points[1].TagList()[0].Value)
-	assert.Equal(t, influxDB2OpenConnsName, mockInfluxDB2Points[2].FieldList()[0].Key)
+	assert.Equal(t, serviceOpenConnsName, mockInfluxDB2Points[2].FieldList()[0].Key)
 	assert.Equal(t, 1.0, mockInfluxDB2Points[2].FieldList()[0].Value)
 	assert.Equal(t, "service", mockInfluxDB2Points[2].TagList()[0].Key)
 	assert.Equal(t, "foobar", mockInfluxDB2Points[2].TagList()[0].Value)
