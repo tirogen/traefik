@@ -5,9 +5,9 @@ To enable the InfluxDB 2:
 ```yaml tab="File (YAML)"
 metrics:
   influxDB2:
-    token: "<token>"
-    bucket: "my-bucket"
-    org: "my-org"
+    token: <token>
+    bucket: my-bucket
+    org: my-org
 ```
 
 ```toml tab="File (TOML)"
@@ -19,7 +19,7 @@ metrics:
 ```
 
 ```bash tab="CLI"
---metrics.influxdb2=true --metrics.influxdb2.token="<token>" --metrics.influxdb2.bucket="my-bucket" --metrics.influxdb2.org="my-org"
+--metrics.influxdb2=true --metrics.influxdb2.token=<token> --metrics.influxdb2.bucket=my-bucket --metrics.influxdb2.org=my-org
 ```
 
 #### `address`
