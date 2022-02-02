@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/kit/metrics/generic"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api"
+	iLog "github.com/influxdata/influxdb-client-go/v2/log"
 	"github.com/traefik/traefik/v2/pkg/log"
 	"github.com/traefik/traefik/v2/pkg/types"
 )
@@ -21,6 +22,7 @@ var (
 
 // RegisterInfluxDB2 creates metrics exporter for InfluxDB2.
 func RegisterInfluxDB2(ctx context.Context, config *types.InfluxDB2) Registry {
+	iLog.Log = nil // Disable influxDB2 internal logs
 	if influxDB2Client == nil {
 		flushMs := uint(time.Duration(config.PushInterval).Milliseconds())
 		options := influxdb2.DefaultOptions()
@@ -38,6 +40,15 @@ func RegisterInfluxDB2(ctx context.Context, config *types.InfluxDB2) Registry {
 			influxDB2Client.Close()
 			influxDB2Client = nil
 		}
+
+		go func() {
+			for {
+				select {
+				case err := <-influxDB2WriteAPI.Errors():
+					log.FromContext(ctx).Errorf("%+v", err)
+				}
+			}
+		}()
 	}
 
 	registry := &standardRegistry{
