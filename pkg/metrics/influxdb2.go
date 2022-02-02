@@ -25,7 +25,7 @@ var (
 
 // RegisterInfluxDB2 creates metrics exporter for InfluxDB2.
 func RegisterInfluxDB2(ctx context.Context, config *types.InfluxDB2) Registry {
-	iLog.Log = nil // Disable influxDB2 internal logs
+	iLog.Log = nil // Disable influxDB2 internal logs in favor of internal logger
 	if influxDB2Client == nil {
 		flushMs := uint(time.Duration(config.PushInterval).Milliseconds())
 		options := influxdb2.DefaultOptions()
@@ -44,7 +44,7 @@ func RegisterInfluxDB2(ctx context.Context, config *types.InfluxDB2) Registry {
 			influxDB2Client = nil
 		}
 
-		go func() {
+		go func() { // FIXME throw panic when closing traefik
 			for {
 				select {
 				case err := <-influxDB2WriteAPI.Errors():
@@ -107,12 +107,7 @@ func StopInfluxDB2() {
 func sendInfluxDB2(name string, labels []string, value interface{}) {
 	tags := make(map[string]string)
 	fields := make(map[string]interface{})
-	for i := range labels {
-		if i%2 != 0 {
-			continue
-		} else if i+1 >= len(labels) {
-			break
-		}
+	for i := 0; i < len(labels); i += 2 { // sets pairs of labels as tags
 		tags[labels[i]] = labels[i+1]
 	}
 
