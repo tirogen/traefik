@@ -102,16 +102,13 @@ func StopInfluxDB2() {
 }
 
 func sendInfluxDB2(name string, labels []string, value interface{}) {
-	tags := make(map[string]string)
-	fields := make(map[string]interface{})
+	point := influxdb2.NewPointWithMeasurement("traefik")
+
 	for i := 0; i < len(labels); i += 2 { // sets pairs of labels as tags
-		tags[labels[i]] = labels[i+1]
+		point = point.AddTag(labels[i], labels[i+1])
 	}
 
-	fields[name] = value
-
-	p := influxdb2.NewPoint("traefik", tags, fields, time.Now())
-	influxDB2WriteAPI.WritePoint(p)
+	influxDB2WriteAPI.WritePoint(point.AddField(name, value).SetTime(time.Now()))
 }
 
 type influxDB2Counter struct {
