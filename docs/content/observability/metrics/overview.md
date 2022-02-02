@@ -4,6 +4,7 @@ Traefik supports 4 metrics backends:
 
 - [Datadog](./datadog.md)
 - [InfluxDB](./influxdb.md)
+- [InfluxDB2](./influxdb2.md) <!-- FIXME add documentation for each metric -->
 - [Prometheus](./prometheus.md)
 - [StatsD](./statsd.md)
 
