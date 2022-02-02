@@ -29,17 +29,8 @@ func RegisterInfluxDB2(ctx context.Context, config *types.InfluxDB2) Registry {
 		options = options.SetBatchSize(config.BatchSize)
 		options = options.SetFlushInterval(flushMs)
 		influxDB2Client = influxdb2.NewClientWithOptions(config.Address, config.Token, options)
-		if influxDB2Client == nil { // FIXME seems that it does never happen
-			log.FromContext(ctx).Error("Failed to connect to InfluxDB v2")
-			return nil
-		}
 
 		influxDB2WriteAPI = influxDB2Client.WriteAPI(config.Org, config.Bucket)
-		if influxDB2WriteAPI == nil { // FIXME seems that it does never happen
-			log.FromContext(ctx).Error("Failed to open InfluxDB v2 bucket")
-			influxDB2Client.Close()
-			influxDB2Client = nil
-		}
 
 		go func() { // FIXME throw panic when closing traefik
 			for {
