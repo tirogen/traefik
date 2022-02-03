@@ -42,7 +42,7 @@ metrics:
 
 _Required, Default=""_
 
-InfluxDB token (can be obtained from InfluxDB instance web UI). Mandatory for connection.
+Defines a token with which to connect to InfluxDB.
 
 ```yaml tab="File (YAML)"
 metrics:
@@ -64,7 +64,7 @@ metrics:
 
 _Required, Default=""_
 
-InfluxDB org where Traefik metrics will be stored. Must not be left blank, necessary for connection.
+InfluxDB's organisation where metrics will be stored.
 
 ```yaml tab="File (YAML)"
 metrics:
@@ -86,7 +86,7 @@ metrics:
 
 _Required, Default=""_
 
-InfluxDB bucket where Traefik metrics will be stored. Must not be left blank, necessary for connection.
+InfluxDB's bucket where metrics will be stored.
 
 ```yaml tab="File (YAML)"
 metrics:
@@ -132,16 +132,16 @@ _Optional, Default=false_
 
 Enable metrics on routers.
 
-```toml tab="File (TOML)"
-[metrics]
-  [metrics.influxDB2]
-    addRoutersLabels = true
-```
-
 ```yaml tab="File (YAML)"
 metrics:
   influxDB2:
     addRoutersLabels: true
+```
+
+```toml tab="File (TOML)"
+[metrics]
+  [metrics.influxDB2]
+    addRoutersLabels = true
 ```
 
 ```bash tab="CLI"
@@ -176,6 +176,8 @@ _Optional, Default=10_
 
 Number of metrics reports collected before pushing to InfluxDB.
 
+!!! warning "`batchSize` must be strictly greater thant zero"
+
 ```yaml tab="File (YAML)"
 metrics:
   influxDB2:
@@ -207,7 +209,7 @@ metrics:
 ```toml tab="File (TOML)"
 [metrics]
   [metrics.influxDB2]
-    pushInterval = 30s
+    pushInterval = "10s"
 ```
 
 ```bash tab="CLI"

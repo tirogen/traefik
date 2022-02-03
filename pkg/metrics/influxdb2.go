@@ -89,8 +89,8 @@ func initInfluxDB2Client(config *types.InfluxDB2) error {
 
 	flushMs := uint(time.Duration(config.PushInterval).Milliseconds())
 	options := influxdb2.DefaultOptions()
-	options = options.SetBatchSize(uint(config.BatchSize))
-	options = options.SetFlushInterval(flushMs)
+	options.SetBatchSize(uint(config.BatchSize))
+	options.SetFlushInterval(flushMs)
 	influxDB2Client = influxdb2.NewClientWithOptions(config.Address, config.Token, options)
 
 	return nil
