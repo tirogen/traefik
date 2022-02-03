@@ -20,7 +20,7 @@ metrics:
 
 _Required, Default="http://localhost:8086"_
 
-Address of InfluxDB2 instance.
+Address of the InfluxDB2 instance.
 
 ```yaml tab="File (YAML)"
 metrics:

@@ -4,7 +4,7 @@ Traefik supports 4 metrics backends:
 
 - [Datadog](./datadog.md)
 - [InfluxDB](./influxdb.md)
-- [InfluxDB2](./influxdb2.md) <!-- FIXME add documentation for each metric -->
+- [InfluxDB2](./influxdb2.md)
 - [Prometheus](./prometheus.md)
 - [StatsD](./statsd.md)
 
@@ -25,6 +25,10 @@ config.reload.total
 ```
 
 ```influxdb tab="InfluxDB"
+traefik.config.reload.total
+```
+
+```influxdb tab="InfluxDB2"
 traefik.config.reload.total
 ```
 
@@ -49,6 +53,10 @@ config.reload.lastSuccessTimestamp
 traefik.config.reload.lastSuccessTimestamp
 ```
 
+```influxdb tab="InfluxDB2"
+traefik.config.reload.lastSuccessTimestamp
+```
+
 ```prom tab="Prometheus"
 traefik_config_last_reload_success
 ```
@@ -69,6 +77,10 @@ tls.certs.notAfterTimestamp
 ```
 
 ```influxdb tab="InfluxDB"
+traefik.tls.certs.notAfterTimestamp
+```
+
+```influxdb tab="InfluxDB2"
 traefik.tls.certs.notAfterTimestamp
 ```
 
@@ -104,6 +116,10 @@ entrypoint.request.total
 traefik.entrypoint.requests.total
 ```
 
+```influxdb tab="InfluxDB2"
+traefik.entrypoint.requests.total
+```
+
 ```prom tab="Prometheus"
 traefik_entrypoint_requests_total
 ```
@@ -124,6 +140,10 @@ entrypoint.request.tls.total
 ```
 
 ```influxdb tab="InfluxDB"
+traefik.entrypoint.requests.tls.total
+```
+
+```influxdb tab="InfluxDB2"
 traefik.entrypoint.requests.tls.total
 ```
 
@@ -150,6 +170,10 @@ entrypoint.request.duration
 traefik.entrypoint.request.duration
 ```
 
+```influxdb tab="InfluxDB2"
+traefik.entrypoint.request.duration
+```
+
 ```prom tab="Prometheus"
 traefik_entrypoint_request_duration_seconds
 ```
@@ -170,6 +194,10 @@ entrypoint.connections.open
 ```
 
 ```influxdb tab="InfluxDB"
+traefik.entrypoint.connections.open
+```
+
+```influxdb tab="InfluxDB2"
 traefik.entrypoint.connections.open
 ```
 
@@ -205,6 +233,10 @@ router.request.total
 traefik.router.requests.total
 ```
 
+```influxdb tab="InfluxDB2"
+traefik.router.requests.total
+```
+
 ```prom tab="Prometheus"
 traefik_router_requests_total
 ```
@@ -225,6 +257,10 @@ router.request.tls.total
 ```
 
 ```influxdb tab="InfluxDB"
+traefik.router.requests.tls.total
+```
+
+```influxdb tab="InfluxDB2"
 traefik.router.requests.tls.total
 ```
 
@@ -251,6 +287,10 @@ router.request.duration
 traefik.router.request.duration
 ```
 
+```influxdb tab="InfluxDB2"
+traefik.router.request.duration
+```
+
 ```prom tab="Prometheus"
 traefik_router_request_duration_seconds
 ```
@@ -271,6 +311,10 @@ router.connections.open
 ```
 
 ```influxdb tab="InfluxDB"
+traefik.router.connections.open
+```
+
+```influxdb tab="InfluxDB2"
 traefik.router.connections.open
 ```
 
@@ -308,6 +352,10 @@ service.request.total
 traefik.service.requests.total
 ```
 
+```influxdb tab="InfluxDB2"
+traefik.service.requests.total
+```
+
 ```prom tab="Prometheus"
 traefik_service_requests_total
 ```
@@ -328,6 +376,10 @@ router.service.tls.total
 ```
 
 ```influxdb tab="InfluxDB"
+traefik.service.requests.tls.total
+```
+
+```influxdb tab="InfluxDB2"
 traefik.service.requests.tls.total
 ```
 
@@ -354,6 +406,10 @@ service.request.duration
 traefik.service.request.duration
 ```
 
+```influxdb tab="InfluxDB2"
+traefik.service.request.duration
+```
+
 ```prom tab="Prometheus"
 traefik_service_request_duration_seconds
 ```
@@ -374,6 +430,10 @@ service.connections.open
 ```
 
 ```influxdb tab="InfluxDB"
+traefik.service.connections.open
+```
+
+```influxdb tab="InfluxDB2"
 traefik.service.connections.open
 ```
 
@@ -400,6 +460,11 @@ service.retries.total
 traefik.service.retries.total
 ```
 
+
+```influxdb tab="InfluxDB2"
+traefik.service.retries.total
+```
+
 ```prom tab="Prometheus"
 traefik_service_retries_total
 ```
@@ -420,6 +485,10 @@ service.server.up
 ```
 
 ```influxdb tab="InfluxDB"
+traefik.service.server.up
+```
+
+```influxdb tab="InfluxDB2"
 traefik.service.server.up
 ```
 
