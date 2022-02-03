@@ -1,6 +1,6 @@
 # InfluxDB 2
 
-To enable the InfluxDB 2:
+To enable the InfluxDB2:
 
 ```yaml tab="File (YAML)"
 metrics:
@@ -20,7 +20,7 @@ metrics:
 
 _Required, Default="http://localhost:8086"_
 
-Address of InfluxDB 2 instance.
+Address of InfluxDB2 instance.
 
 ```yaml tab="File (YAML)"
 metrics:
@@ -42,7 +42,7 @@ metrics:
 
 _Required, Default=""_
 
-Defines a token with which to connect to InfluxDB.
+Defines a token with which to connect to InfluxDB2.
 
 ```yaml tab="File (YAML)"
 metrics:
@@ -64,7 +64,7 @@ metrics:
 
 _Required, Default=""_
 
-InfluxDB's organisation where metrics will be stored.
+InfluxDB2's organisation where metrics will be stored.
 
 ```yaml tab="File (YAML)"
 metrics:
@@ -174,7 +174,7 @@ metrics:
 
 _Optional, Default=10_
 
-Number of metrics reports collected before pushing to InfluxDB.
+Number of metrics reports collected before pushing to InfluxDB2.
 
 !!! warning "`batchSize` must be strictly greater thant zero"
 
@@ -196,14 +196,14 @@ metrics:
 
 #### `pushInterval`
 
-_Optional, Default=30s_
+_Optional, Default=10s_
 
-Interval at which Traefik will save metrics to InfluxDB. Even if less than `BatchSize` metrics were collected, they will be sent to InfluxDB.
+The interval used by the exporter to push metrics to influxdb2.
 
 ```yaml tab="File (YAML)"
 metrics:
   influxDB2:
-    pushInterval: 30s
+    pushInterval: 10s
 ```
 
 ```toml tab="File (TOML)"
@@ -213,5 +213,5 @@ metrics:
 ```
 
 ```bash tab="CLI"
---metrics.influxdb2.pushInterval=30s
+--metrics.influxdb2.pushInterval=10s
 ```
