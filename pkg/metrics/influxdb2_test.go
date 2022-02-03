@@ -31,7 +31,7 @@ func TestInfluxDB2(t *testing.T) {
 		&types.InfluxDB2{
 			Address:              ts.URL,
 			BatchSize:            10,
-			PushInterval:         ptypes.Duration(time.Millisecond),
+			PushInterval:         ptypes.Duration(time.Millisecond * 10),
 			AddEntryPointsLabels: true,
 			AddRoutersLabels:     true,
 			AddServicesLabels:    true,
