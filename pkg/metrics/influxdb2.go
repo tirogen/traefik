@@ -8,9 +8,6 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/metrics"
-	"github.com/traefik/traefik/v2/pkg/log"
-
-	"github.com/go-kit/kit/metrics"
 	"github.com/go-kit/kit/metrics/generic"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api"
