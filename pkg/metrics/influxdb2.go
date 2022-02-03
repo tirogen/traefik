@@ -32,11 +32,16 @@ func RegisterInfluxDB2(ctx context.Context, config *types.InfluxDB2) Registry {
 
 		influxDB2WriteAPI = influxDB2Client.WriteAPI(config.Org, config.Bucket)
 
-		go func() { // FIXME throw panic when closing traefik
+		go func() {
 			for {
+				if influxDB2WriteAPI == nil {
+					return
+				}
 				select {
 				case err := <-influxDB2WriteAPI.Errors():
-					log.FromContext(ctx).Errorf("%+v", err)
+					if err != nil {
+						log.FromContext(ctx).Errorf("%+v", err)
+					}
 				}
 			}
 		}()
@@ -81,15 +86,15 @@ func RegisterInfluxDB2(ctx context.Context, config *types.InfluxDB2) Registry {
 
 // StopInfluxDB2 flushes and removes InfluxDB2 client and WriteAPI.
 func StopInfluxDB2() {
-	if influxDB2Client != nil {
-		influxDB2Client.Close()
-	}
-	influxDB2Client = nil
-
 	if influxDB2WriteAPI != nil {
 		influxDB2WriteAPI.Flush()
 	}
 	influxDB2WriteAPI = nil
+
+	if influxDB2Client != nil {
+		influxDB2Client.Close()
+	}
+	influxDB2Client = nil
 }
 
 func sendInfluxDB2(name string, labels []string, value interface{}) {
