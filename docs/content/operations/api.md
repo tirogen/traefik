@@ -158,9 +158,9 @@ All the following endpoints must be accessed with a `GET` HTTP request.
 | `/api/overview`                | Returns statistic information about http and tcp as well as enabled features and providers. |
 | `/api/rawdata`                 | Returns information about dynamic configurations, errors, status and dependency relations.  |
 | `/api/version`                 | Returns information about Traefik version.                                                  |
-| `/debug/vars`                  | See the [expvar](https://golang.org/pkg/expvar/) Go documentation.                          |
-| `/debug/pprof/`                | See the [pprof Index](https://golang.org/pkg/net/http/pprof/#Index) Go documentation.       |
-| `/debug/pprof/cmdline`         | See the [pprof Cmdline](https://golang.org/pkg/net/http/pprof/#Cmdline) Go documentation.   |
-| `/debug/pprof/profile`         | See the [pprof Profile](https://golang.org/pkg/net/http/pprof/#Profile) Go documentation.   |
-| `/debug/pprof/symbol`          | See the [pprof Symbol](https://golang.org/pkg/net/http/pprof/#Symbol) Go documentation.     |
-| `/debug/pprof/trace`           | See the [pprof Trace](https://golang.org/pkg/net/http/pprof/#Trace) Go documentation.       |
+| `/debug/vars`                  | See the [expvar](https://go.dev/pkg/expvar/) Go documentation.                          |
+| `/debug/pprof/`                | See the [pprof Index](https://go.dev/pkg/net/http/pprof/#Index) Go documentation.       |
+| `/debug/pprof/cmdline`         | See the [pprof Cmdline](https://go.dev/pkg/net/http/pprof/#Cmdline) Go documentation.   |
+| `/debug/pprof/profile`         | See the [pprof Profile](https://go.dev/pkg/net/http/pprof/#Profile) Go documentation.   |
+| `/debug/pprof/symbol`          | See the [pprof Symbol](https://go.dev/pkg/net/http/pprof/#Symbol) Go documentation.     |
+| `/debug/pprof/trace`           | See the [pprof Trace](https://go.dev/pkg/net/http/pprof/#Trace) Go documentation.       |

@@ -245,7 +245,7 @@ a Kubernetes cluster that updates many times per second from continuously changi
 If left empty, the provider does not apply any throttling and does not drop any Kubernetes events.
 
 The value of `throttleDuration` should be provided in seconds or as a valid duration format,
-see [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration).
+see [time.ParseDuration](https://go.dev/pkg/time/#ParseDuration).
 
 ```yaml tab="File (YAML)"
 providers:

@@ -221,7 +221,7 @@ If both TCP and UDP are wanted for the same port, two entryPoints definitions ar
     --entrypoints.specificIPv6.address=[2001:db8::1]:8888
     ```
 
-    Full details for how to specify `address` can be found in [net.Listen](https://golang.org/pkg/net/#Listen) (and [net.Dial](https://golang.org/pkg/net/#Dial)) of the doc for go.
+    Full details for how to specify `address` can be found in [net.Listen](https://go.dev/pkg/net/#Listen) (and [net.Dial](https://golang.org/pkg/net/#Dial)) of the doc for go.
 
 ### HTTP/3
 
@@ -369,7 +369,7 @@ Setting them has no effect for UDP entryPoints.
     `readTimeout` is the maximum duration for reading the entire request, including the body.
 
     If zero, no timeout exists.  
-    Can be provided in a format supported by [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration) or as raw values (digits).
+    Can be provided in a format supported by [time.ParseDuration](https://go.dev/pkg/time/#ParseDuration) or as raw values (digits).
     If no units are provided, the value is parsed assuming seconds.
 
     ```yaml tab="File (YAML)"
@@ -406,7 +406,7 @@ Setting them has no effect for UDP entryPoints.
 
     It covers the time from the end of the request header read to the end of the response write.
     If zero, no timeout exists.  
-    Can be provided in a format supported by [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration) or as raw values (digits).
+    Can be provided in a format supported by [time.ParseDuration](https://go.dev/pkg/time/#ParseDuration) or as raw values (digits).
     If no units are provided, the value is parsed assuming seconds.
 
     ```yaml tab="File (YAML)"
@@ -442,7 +442,7 @@ Setting them has no effect for UDP entryPoints.
     `idleTimeout` is the maximum duration an idle (keep-alive) connection will remain idle before closing itself.
 
     If zero, no timeout exists.  
-    Can be provided in a format supported by [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration) or as raw values (digits).
+    Can be provided in a format supported by [time.ParseDuration](https://go.dev/pkg/time/#ParseDuration) or as raw values (digits).
     If no units are provided, the value is parsed assuming seconds.
 
     ```yaml tab="File (YAML)"
@@ -482,7 +482,7 @@ Controls the behavior of Traefik during the shutdown phase.
     Duration to keep accepting requests prior to initiating the graceful termination period (as defined by the `graceTimeOut` option).
     This option is meant to give downstream load-balancers sufficient time to take Traefik out of rotation.
 
-    Can be provided in a format supported by [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration) or as raw values (digits).
+    Can be provided in a format supported by [time.ParseDuration](https://go.dev/pkg/time/#ParseDuration) or as raw values (digits).
 
     If no units are provided, the value is parsed assuming seconds.
     The zero duration disables the request accepting grace period, i.e., Traefik will immediately proceed to the grace period.
@@ -519,7 +519,7 @@ Controls the behavior of Traefik during the shutdown phase.
 
     Duration to give active requests a chance to finish before Traefik stops.
 
-    Can be provided in a format supported by [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration) or as raw values (digits).
+    Can be provided in a format supported by [time.ParseDuration](https://go.dev/pkg/time/#ParseDuration) or as raw values (digits).
 
     If no units are provided, the value is parsed assuming seconds.
 

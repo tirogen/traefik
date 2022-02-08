@@ -145,7 +145,7 @@ Amount of time the Marathon provider should wait before timing out,
 when trying to open a TCP connection to a Marathon master.
 
 The value of `dialerTimeout` should be provided in seconds or as a valid duration format,
-see [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration).
+see [time.ParseDuration](https://go.dev/pkg/time/#ParseDuration).
 
 ```yaml tab="File (YAML)"
 providers:
@@ -324,7 +324,7 @@ _Optional, Default=10s_
 
 Set the TCP Keep Alive duration for the Marathon HTTP Client.
 The value of `keepAlive` should be provided in seconds or as a valid duration format,
-see [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration).
+see [time.ParseDuration](https://go.dev/pkg/time/#ParseDuration).
 
 ```yaml tab="File (YAML)"
 providers:
@@ -380,7 +380,7 @@ Amount of time the Marathon provider should wait before timing out when waiting 
 from a Marathon master.
 
 The value of `responseHeaderTimeout` should be provided in seconds or as a valid duration format,
-see [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration).
+see [time.ParseDuration](https://go.dev/pkg/time/#ParseDuration).
 
 ```yaml tab="File (YAML)"
 providers:
@@ -539,7 +539,7 @@ Amount of time the Marathon provider should wait before timing out,
 when waiting for the TLS handshake to complete.
 
 The value of `tlsHandshakeTimeout` should be provided in seconds or as a valid duration format,
-see [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration).
+see [time.ParseDuration](https://go.dev/pkg/time/#ParseDuration).
 
 ```yaml tab="File (YAML)"
 providers:

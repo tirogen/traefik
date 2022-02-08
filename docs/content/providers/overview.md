@@ -171,7 +171,7 @@ This option cannot be set per provider,
 but the throttling algorithm applies to each of them independently.
 
 The value of `providers.providersThrottleDuration` should be provided in seconds or as a valid duration format,
-see [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration).
+see [time.ParseDuration](https://go.dev/pkg/time/#ParseDuration).
 
 ```yaml tab="File (YAML)"
 providers:

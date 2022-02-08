@@ -79,7 +79,7 @@ The ReplacePathRegex middleware will:
 
 !!! tip
 
-    Regular expressions and replacements can be tested using online tools such as [Go Playground](https://play.golang.org/p/mWU9p-wk2ru) or the [Regex101](https://regex101.com/r/58sIgx/2).
+    Regular expressions and replacements can be tested using online tools such as [Go Playground](https://play.go.dev/p/mWU9p-wk2ru) or the [Regex101](https://regex101.com/r/58sIgx/2).
 
     When defining a regular expression within YAML, any escaped character needs to be escaped twice: `example\.com` needs to be written as `example\\.com`.
 
@@ -93,4 +93,4 @@ The `replacement` option defines the replacement path format, which can include 
 
 !!! warning
 
-    Care should be taken when defining replacement expand variables: `$1x` is equivalent to `${1x}`, not `${1}x` (see [Regexp.Expand](https://golang.org/pkg/regexp/#Regexp.Expand)), so use `${1}` syntax.
+    Care should be taken when defining replacement expand variables: `$1x` is equivalent to `${1x}`, not `${1}x` (see [Regexp.Expand](https://go.dev/pkg/regexp/#Regexp.Expand)), so use `${1}` syntax.

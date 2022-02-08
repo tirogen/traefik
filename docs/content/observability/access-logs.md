@@ -87,7 +87,7 @@ The available filters are:
 
 - `statusCodes`, to limit the access logs to requests with a status codes in the specified range
 - `retryAttempts`, to keep the access logs when at least one retry has happened
-- `minDuration`, to keep access logs when requests take longer than the specified duration (provided in seconds or as a valid duration format, see [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration))
+- `minDuration`, to keep access logs when requests take longer than the specified duration (provided in seconds or as a valid duration format, see [time.ParseDuration](https://go.dev/pkg/time/#ParseDuration))
 
 ```yaml tab="File (YAML)"
 # Configuring Multiple Filters

@@ -83,4 +83,4 @@ The `attempts` option defines how many times the request should be retried.
 The `initialInterval` option defines the first wait time in the exponential backoff series. The maximum interval is
 calculated as twice the `initialInterval`. If unspecified, requests will be retried immediately.
 
-The value of initialInterval should be provided in seconds or as a valid duration format, see [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration).
+The value of initialInterval should be provided in seconds or as a valid duration format, see [time.ParseDuration](https://go.dev/pkg/time/#ParseDuration).

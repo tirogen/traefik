@@ -212,7 +212,7 @@ If the rule is verified, the router becomes active, calls middlewares, and then 
 ??? tip "Backticks or Quotes?"
     To set the value of a rule, use [backticks](https://en.wiktionary.org/wiki/backtick) ``` ` ``` or escaped double-quotes `\"`.
 
-    Single quotes `'` are not accepted as values are [Golang's String Literals](https://golang.org/ref/spec#String_literals).
+    Single quotes `'` are not accepted as values are [Golang's String Literals](https://go.dev/ref/spec#String_literals).
 
 !!! example "Host is example.com"
 
@@ -253,7 +253,7 @@ The table below lists all the available matchers:
     Named regexps, of the form `{name:regexp}`, are the only expressions considered for regexp matching.
     The regexp name (`name` in the above example) is an arbitrary value, that exists only for historical reasons.
 
-    Any `regexp` supported by [Go's regexp package](https://golang.org/pkg/regexp/) may be used.
+    Any `regexp` supported by [Go's regexp package](https://go.dev/pkg/regexp/) may be used.
 
 !!! info "Combining Matchers Using Operators and Parenthesis"
 
