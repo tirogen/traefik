@@ -25,58 +25,137 @@ func (r *responseRecorder) WriteHeader(statusCode int) {
 	r.ResponseRecorder.WriteHeader(statusCode)
 }
 
-func TestBalancer(t *testing.T) {
-	balancer := New(&dynamic.HealthCheck{})
-	var balancerStatus bool
-	require.NoError(t, balancer.RegisterStatusUpdater(func(up bool) {
-		t.Logf("Updating status to %t\n", up)
-		balancerStatus = up
+func TestFailover(t *testing.T) {
+	failover := New(&dynamic.HealthCheck{})
+	status := true
+	require.NoError(t, failover.RegisterStatusUpdater(func(up bool) {
+		status = up
 	}))
 
-	balancer.SetHandler(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+	failover.SetHandler(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		rw.Header().Set("server", "handler")
 		rw.WriteHeader(http.StatusOK)
 	}))
 
-	balancer.SetHandlerStatus(context.Background(), false)
-	balancer.SetHandlerStatus(context.Background(), true)
-
-	balancer.SetFailoverHandler(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+	failover.SetFailoverHandler(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		rw.Header().Set("server", "failover")
 		rw.WriteHeader(http.StatusOK)
 	}))
 
 	recorder := &responseRecorder{ResponseRecorder: httptest.NewRecorder(), save: map[string]int{}}
-	for i := 0; i < 4; i++ {
-		balancer.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
-	}
+	failover.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
 
-	assert.Equal(t, 4, recorder.save["handler"])
+	assert.Equal(t, 1, recorder.save["handler"])
 	assert.Equal(t, 0, recorder.save["failover"])
-	assert.Equal(t, []int{200, 200, 200, 200}, recorder.status)
-	assert.True(t, balancerStatus)
+	assert.Equal(t, []int{200}, recorder.status)
 
-	balancer.SetHandlerStatus(context.Background(), false)
+	failover.SetHandlerStatus(context.Background(), false)
 
 	recorder = &responseRecorder{ResponseRecorder: httptest.NewRecorder(), save: map[string]int{}}
-	for i := 0; i < 4; i++ {
-		balancer.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
-	}
+	failover.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
 
 	assert.Equal(t, 0, recorder.save["handler"])
-	assert.Equal(t, 4, recorder.save["failover"])
-	assert.Equal(t, []int{200, 200, 200, 200}, recorder.status)
-	assert.True(t, balancerStatus)
+	assert.Equal(t, 1, recorder.save["failover"])
+	assert.Equal(t, []int{200}, recorder.status)
+	assert.True(t, status)
 
-	balancer.SetFailoverHandlerStatus(context.Background(), false)
+	failover.SetFailoverHandlerStatus(context.Background(), false)
 
 	recorder = &responseRecorder{ResponseRecorder: httptest.NewRecorder(), save: map[string]int{}}
-	for i := 0; i < 4; i++ {
-		balancer.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
-	}
+	failover.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
 
 	assert.Equal(t, 0, recorder.save["handler"])
 	assert.Equal(t, 0, recorder.save["failover"])
-	assert.Equal(t, []int{503, 503, 503, 503}, recorder.status)
-	assert.False(t, balancerStatus)
+	assert.Equal(t, []int{503}, recorder.status)
+	assert.False(t, status)
+}
+
+func TestFailoverDownThenUp(t *testing.T) {
+	failover := New(nil)
+
+	failover.SetHandler(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("server", "handler")
+		rw.WriteHeader(http.StatusOK)
+	}))
+
+	failover.SetFailoverHandler(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("server", "failover")
+		rw.WriteHeader(http.StatusOK)
+	}))
+
+	recorder := &responseRecorder{ResponseRecorder: httptest.NewRecorder(), save: map[string]int{}}
+	failover.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	assert.Equal(t, 1, recorder.save["handler"])
+	assert.Equal(t, 0, recorder.save["failover"])
+	assert.Equal(t, []int{200}, recorder.status)
+
+	failover.SetHandlerStatus(context.Background(), false)
+
+	recorder = &responseRecorder{ResponseRecorder: httptest.NewRecorder(), save: map[string]int{}}
+	failover.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	assert.Equal(t, 0, recorder.save["handler"])
+	assert.Equal(t, 1, recorder.save["failover"])
+	assert.Equal(t, []int{200}, recorder.status)
+
+	failover.SetHandlerStatus(context.Background(), true)
+
+	recorder = &responseRecorder{ResponseRecorder: httptest.NewRecorder(), save: map[string]int{}}
+	failover.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	assert.Equal(t, 1, recorder.save["handler"])
+	assert.Equal(t, 0, recorder.save["failover"])
+	assert.Equal(t, []int{200}, recorder.status)
+}
+
+func TestFailoverPropagate(t *testing.T) {
+	failover := New(&dynamic.HealthCheck{})
+	failover.SetHandler(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("server", "handler")
+		rw.WriteHeader(http.StatusOK)
+	}))
+	failover.SetFailoverHandler(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("server", "failover")
+		rw.WriteHeader(http.StatusOK)
+	}))
+
+	topFailover := New(nil)
+	topFailover.SetHandler(failover)
+	topFailover.SetFailoverHandler(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("server", "topFailover")
+		rw.WriteHeader(http.StatusOK)
+	}))
+	err := failover.RegisterStatusUpdater(func(up bool) {
+		topFailover.SetHandlerStatus(context.Background(), up)
+	})
+	require.NoError(t, err)
+
+	recorder := &responseRecorder{ResponseRecorder: httptest.NewRecorder(), save: map[string]int{}}
+	topFailover.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	assert.Equal(t, 1, recorder.save["handler"])
+	assert.Equal(t, 0, recorder.save["failover"])
+	assert.Equal(t, 0, recorder.save["topFailover"])
+	assert.Equal(t, []int{200}, recorder.status)
+
+	failover.SetHandlerStatus(context.Background(), false)
+
+	recorder = &responseRecorder{ResponseRecorder: httptest.NewRecorder(), save: map[string]int{}}
+	topFailover.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	assert.Equal(t, 0, recorder.save["handler"])
+	assert.Equal(t, 1, recorder.save["failover"])
+	assert.Equal(t, 0, recorder.save["topFailover"])
+	assert.Equal(t, []int{200}, recorder.status)
+
+	failover.SetFailoverHandlerStatus(context.Background(), false)
+
+	recorder = &responseRecorder{ResponseRecorder: httptest.NewRecorder(), save: map[string]int{}}
+	topFailover.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	assert.Equal(t, 0, recorder.save["handler"])
+	assert.Equal(t, 0, recorder.save["failover"])
+	assert.Equal(t, 1, recorder.save["topFailover"])
+	assert.Equal(t, []int{200}, recorder.status)
 }

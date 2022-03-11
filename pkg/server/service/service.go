@@ -161,6 +161,7 @@ func (m *Manager) getFailoverServiceHandler(ctx context.Context, serviceName str
 
 	f.SetFailoverHandler(failoverHandler)
 
+	// Do not report the health of the failover handler
 	if config.HealthCheck == nil {
 		return f, nil
 	}

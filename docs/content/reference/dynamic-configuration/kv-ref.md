@@ -219,7 +219,6 @@
 | `traefik/http/services/Service02/mirroring/mirrors/1/name` | `foobar` |
 | `traefik/http/services/Service02/mirroring/mirrors/1/percent` | `42` |
 | `traefik/http/services/Service02/mirroring/service` | `foobar` |
-| `traefik/http/services/Service03/weighted/failoverService` | `foobar` |
 | `traefik/http/services/Service03/weighted/healthCheck` | `` |
 | `traefik/http/services/Service03/weighted/services/0/name` | `foobar` |
 | `traefik/http/services/Service03/weighted/services/0/weight` | `42` |
@@ -229,6 +228,9 @@
 | `traefik/http/services/Service03/weighted/sticky/cookie/name` | `foobar` |
 | `traefik/http/services/Service03/weighted/sticky/cookie/sameSite` | `foobar` |
 | `traefik/http/services/Service03/weighted/sticky/cookie/secure` | `true` |
+| `traefik/http/services/Service04/failover/service` | `foobar` |
+| `traefik/http/services/Service04/failover/failover` | `foobar` |
+| `traefik/http/services/Service04/failover/healthCheck` | `` |
 | `traefik/tcp/middlewares/Middleware00/ipWhiteList/sourceRange/0` | `foobar` |
 | `traefik/tcp/middlewares/Middleware00/ipWhiteList/sourceRange/1` | `foobar` |
 | `traefik/tcp/routers/TCPRouter0/entryPoints/0` | `foobar` |

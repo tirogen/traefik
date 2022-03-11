@@ -77,7 +77,7 @@ func (m *Mirroring) SetDefaults() {
 
 // +k8s:deepcopy-gen=true
 
-// Failover TODO
+// Failover holds the Failover configuration.
 type Failover struct {
 	Service     string       `json:"service,omitempty" toml:"service,omitempty" yaml:"service,omitempty" export:"true"`
 	Failover    string       `json:"failover,omitempty" toml:"failover,omitempty" yaml:"failover,omitempty" export:"true"`

@@ -83,7 +83,6 @@ http:
           percent: 42
     Service03:
       weighted:
-        failoverService: foobar
         healthCheck: {}
         services:
         - name: foobar
@@ -96,6 +95,11 @@ http:
             secure: true
             httpOnly: true
             sameSite: foobar
+    Service04:
+      failover:
+        service: foobar
+        failover: foobar
+        healthCheck: {}
   middlewares:
     Middleware00:
       addPrefix:

@@ -10,6 +10,8 @@ import (
 	"github.com/traefik/traefik/v2/pkg/log"
 )
 
+// Failover is a http.Handler that can forward requests to the failover handler
+// when the main handler status is down.
 type Failover struct {
 	wantsHealthCheck bool
 	handler          http.Handler
@@ -25,6 +27,7 @@ type Failover struct {
 	failoverStatus   bool
 }
 
+// New creates a new Failover handler.
 func New(hc *dynamic.HealthCheck) *Failover {
 	return &Failover{
 		wantsHealthCheck: hc != nil,
@@ -32,7 +35,7 @@ func New(hc *dynamic.HealthCheck) *Failover {
 }
 
 // RegisterStatusUpdater adds fn to the list of hooks that are run when the
-// status of the Balancer changes.
+// status of the Failover changes.
 // Not thread safe.
 func (f *Failover) RegisterStatusUpdater(fn func(up bool)) error {
 	if !f.wantsHealthCheck {
@@ -66,6 +69,7 @@ func (f *Failover) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 }
 
+// SetHandler sets the main http.Handler.
 func (f *Failover) SetHandler(handler http.Handler) {
 	f.handlerStatusMu.Lock()
 	defer f.handlerStatusMu.Unlock()
@@ -74,6 +78,32 @@ func (f *Failover) SetHandler(handler http.Handler) {
 	f.handlerStatus = true
 }
 
+// SetHandlerStatus sets the main handler status.
+func (f *Failover) SetHandlerStatus(ctx context.Context, up bool) {
+	f.handlerStatusMu.Lock()
+	defer f.handlerStatusMu.Unlock()
+
+	status := "DOWN"
+	if up {
+		status = "UP"
+	}
+
+	if up == f.handlerStatus {
+		// We're still with the same status, no need to propagate.
+		log.FromContext(ctx).Debugf("Still %s, no need to propagate", status)
+		return
+	}
+
+	log.FromContext(ctx).Debugf("Propagating new %s status", status)
+	f.handlerStatus = up
+
+	for _, fn := range f.updaters {
+		// Failover status is set to DOWN when both handlers have a DOWN status.
+		fn(f.handlerStatus || f.failoverStatus)
+	}
+}
+
+// SetFailoverHandler sets the failover http.Handler.
 func (f *Failover) SetFailoverHandler(handler http.Handler) {
 	f.failoverStatusMu.Lock()
 	defer f.failoverStatusMu.Unlock()
@@ -82,38 +112,27 @@ func (f *Failover) SetFailoverHandler(handler http.Handler) {
 	f.failoverStatus = true
 }
 
-func (f *Failover) SetHandlerStatus(ctx context.Context, up bool) {
-	f.handlerStatusMu.Lock()
-	defer f.handlerStatusMu.Unlock()
-
-	if up == f.handlerStatus {
-		// We're still with the same status, no need to propagate
-		log.FromContext(ctx).Debugf("Still %t, no need to propagate", up)
-		return
-	}
-
-	log.FromContext(ctx).Debugf("Propagating new %t status", up)
-	f.handlerStatus = up
-
-	for _, fn := range f.updaters {
-		fn(f.handlerStatus || f.failoverStatus)
-	}
-}
-
+// SetFailoverHandlerStatus sets the failover handler status.
 func (f *Failover) SetFailoverHandlerStatus(ctx context.Context, up bool) {
 	f.failoverStatusMu.Lock()
 	defer f.failoverStatusMu.Unlock()
 
+	status := "DOWN"
+	if up {
+		status = "UP"
+	}
+
 	if up == f.failoverStatus {
-		// We're still with the same status, no need to propagate
-		log.FromContext(ctx).Debugf("Still %t, no need to propagate", up)
+		// We're still with the same status, no need to propagate.
+		log.FromContext(ctx).Debugf("Still %s, no need to propagate", status)
 		return
 	}
 
-	log.FromContext(ctx).Debugf("Propagating new %t status", up)
+	log.FromContext(ctx).Debugf("Propagating new %s status", status)
 	f.failoverStatus = up
 
 	for _, fn := range f.updaters {
+		// Failover status is set to DOWN when both handlers have a DOWN status.
 		fn(f.handlerStatus || f.failoverStatus)
 	}
 }
