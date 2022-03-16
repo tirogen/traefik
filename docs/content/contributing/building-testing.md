@@ -20,29 +20,26 @@ In case when you run build on CI, you may probably want to run docker in non-int
 
 ```bash
 $ make binary
-docker build -t traefik-webui -f webui/Dockerfile webui
-Sending build context to Docker daemon  2.686MB
-Step 1/11 : FROM node:8.15.0
- ---> 1f6c34f7921c
+docker build -t traefik-webui --build-arg ARG_PLATFORM_URL="https://pilot.traefik.io" -f webui/Dockerfile webui
+[+] Building 5.4s (14/14) FINISHED
 [...]
-Successfully built ce4ff439c06a
-Successfully tagged traefik-webui:latest
+ => => naming to docker.io/library/traefik-webui
+docker run --rm -v "$PWD/webui/static":'/src/webui/static' traefik-webui npm run build:nc
 [...]
-docker build  -t "traefik-dev:4475--feature-documentation" -f build.Dockerfile .
-Sending build context to Docker daemon    279MB
-Step 1/10 : FROM golang:1.16-alpine
- ---> f4bfb3d22bda
+Installed new files in static folder!
+docker run --rm -v "$PWD/webui/static":'/src/webui/static' traefik-webui chown -R 1000:1000 ./static
+mkdir -p dist
+docker build  -t "traefik-dev:update-to-go1.18" -f build.Dockerfile .
+[+] Building 1.4s (16/16) FINISHED
 [...]
-Successfully built 5c3c1a911277
-Successfully tagged traefik-dev:4475--feature-documentation
-docker run  -e "TEST_CONTAINER=1" -v "/var/run/docker.sock:/var/run/docker.sock" -it -e OS_ARCH_ARG -e OS_PLATFORM_ARG -e TESTFLAGS -e VERBOSE -e VERSION -e CODENAME -e TESTDIRS -e CI -e CONTAINER=DOCKER		 -v "/home/ldez/sources/go/src/github.com/traefik/traefik/"dist":/go/src/github.com/traefik/traefik/"dist"" "traefik-dev:4475--feature-documentation" ./script/make.sh generate binary
----> Making bundle: generate (in .)
-removed 'autogen/genstatic/gen.go'
+ => => naming to docker.io/library/traefik-dev:master
+docker run -v "/var/run/docker.sock:/var/run/docker.sock"   -e OS_ARCH_ARG -e OS_PLATFORM_ARG -e TESTFLAGS -e VERBOSE -e VERSION -e CODENAME -e TESTDIRS -e CI -e CONTAINER=DOCKER		 -v "/home/ldez/go/src/github.com/traefik/traefik/dist:/go/src/github.com/traefik/traefik/dist" "traefik-dev:master" ./script/make.sh generate binary
+---> Making bundle: generate (in /go/src/github.com/traefik/traefik/script)
 
----> Making bundle: binary (in .)
+---> Making bundle: binary (in /go/src/github.com/traefik/traefik/script)
 
 $ ls dist/
-traefik*
+traefik
 ```
 
 The following targets can be executed outside Docker by setting the variable `IN_DOCKER` to an empty string (although be aware that some of the tests might fail in that context):
