@@ -84,9 +84,7 @@ crossbinary-default: generate-webui build-dev-image
 	$(DOCKER_RUN_TRAEFIK_NOTTY) ./script/make.sh generate crossbinary-default
 
 ## Build the binary for the standard platforms (linux, darwin, windows) in parallel
-crossbinary-default-parallel:
-	$(MAKE) generate-webui
-	$(MAKE) build-dev-image crossbinary-default
+crossbinary-default-parallel: generate-webui build-dev-image crossbinary-default
 
 ## Run the unit and integration tests
 test: build-dev-image
