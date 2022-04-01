@@ -38,6 +38,10 @@ IN_DOCKER ?= true
 
 default: binary
 
+## Create the "dist" directory
+dist:
+	mkdir -p dist
+
 ## Build Dev Docker image
 build-dev-image:
 	docker build $(DOCKER_BUILD_ARGS) -t "$(TRAEFIK_DEV_IMAGE)" -f build.Dockerfile .
@@ -45,10 +49,6 @@ build-dev-image:
 ## Build Dev Docker image without cache
 build-dev-image-no-cache: dist
 	docker build --no-cache -t "$(TRAEFIK_DEV_IMAGE)" -f build.Dockerfile .
-
-## Create the "dist" directory
-dist:
-	mkdir -p dist
 
 ## Build WebUI Docker image
 build-webui-image:
