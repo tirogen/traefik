@@ -154,7 +154,7 @@ docs-pull-images:
 
 ## Generate CRD clientset and CRD manifests
 generate-crd:
-	@$(CURDIR)/script/code-gen.sh
+	@./script/code-gen.sh
 
 ## Generate code from dynamic configuration https://github.com/traefik/genconf
 generate-genconf:
