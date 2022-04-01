@@ -128,7 +128,7 @@ validate:
 build-image: clean-webui traefik
 	docker build -t $(TRAEFIK_IMAGE) .
 
-## Build a Docker Traefik image
+## Build a Docker Traefik image without re-building the webui
 build-image-dirty: traefik
 	docker build -t $(TRAEFIK_IMAGE) .
 
