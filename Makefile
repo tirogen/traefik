@@ -91,10 +91,6 @@ crossbinary-default: generate-webui build-dev-image
 	$(DOCKER_RUN_TRAEFIK_NOTTY) ./script/make.sh generate crossbinary-default
 .PHONY: crossbinary-default
 
-## Build the binary for the standard platforms (linux, darwin, windows) in parallel
-crossbinary-default-parallel: generate-webui build-dev-image crossbinary-default
-.PHONY: crossbinary-default-parallel
-
 ## Run the unit and integration tests
 test: build-dev-image
 	-docker network create traefik-test-network --driver bridge --subnet 172.31.42.0/24
