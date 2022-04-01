@@ -113,14 +113,16 @@ pull-images:
 		| xargs -P 6 -n 1 docker pull
 
 ## Validate code and docs
-validate-files: build-dev-image
+validate-files:
+	$(if $(IN_DOCKER),$(MAKE) build-dev-image)
 	$(if $(IN_DOCKER),$(DOCKER_RUN_TRAEFIK)) ./script/make.sh generate validate-lint validate-misspell
-	bash $(CURDIR)/script/validate-shell-script.sh
+	./script/validate-shell-script.sh
 
 ## Validate code, docs, and vendor
-validate: build-dev-image
+validate:
+	$(if $(IN_DOCKER),$(MAKE) build-dev-image)
 	$(if $(IN_DOCKER),$(DOCKER_RUN_TRAEFIK)) ./script/make.sh generate validate-lint validate-misspell validate-vendor
-	bash $(CURDIR)/script/validate-shell-script.sh
+	./script/validate-shell-script.sh
 
 ## Clean up static directory and build a Docker Traefik image
 build-image: clean-webui traefik
