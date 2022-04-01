@@ -39,8 +39,8 @@ IN_DOCKER ?= true
 default: binary
 
 ## Build Dev Docker image
-build-dev-image: dist
-	$(if $(IN_DOCKER),docker build $(DOCKER_BUILD_ARGS) -t "$(TRAEFIK_DEV_IMAGE)" -f build.Dockerfile .,)
+build-dev-image:
+	docker build $(DOCKER_BUILD_ARGS) -t "$(TRAEFIK_DEV_IMAGE)" -f build.Dockerfile .
 
 ## Build Dev Docker image without cache
 build-dev-image-no-cache: dist
