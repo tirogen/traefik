@@ -36,7 +36,7 @@ DOCKER_RUN_TRAEFIK_NOTTY := docker run $(INTEGRATION_OPTS) $(if $(DOCKER_NON_INT
 
 IN_DOCKER ?= true
 
-default: binary
+default: traefik
 
 ## Create the "dist" directory
 dist:
@@ -68,9 +68,12 @@ webui/static/index.html:
 
 generate-webui: webui/static/index.html
 
-## Build the binary
-binary: generate-webui build-dev-image
+## Build the traefik binary
+traefik: generate-webui
+	$(if $(IN_DOCKER),$(MAKE) build-dev-image)
 	$(if $(IN_DOCKER),$(DOCKER_RUN_TRAEFIK)) ./script/make.sh generate binary
+
+binary: traefik # for backward compatibility
 
 ## Build the linux binary locally
 binary-debug: generate-webui
@@ -118,11 +121,11 @@ validate: build-dev-image
 	bash $(CURDIR)/script/validate-shell-script.sh
 
 ## Clean up static directory and build a Docker Traefik image
-build-image: clean-webui binary
+build-image: clean-webui traefik
 	docker build -t $(TRAEFIK_IMAGE) .
 
 ## Build a Docker Traefik image
-build-image-dirty: binary
+build-image-dirty: traefik
 	docker build -t $(TRAEFIK_IMAGE) .
 
 ## Locally build traefik for linux, then shove it an alpine image, with basic tools.
