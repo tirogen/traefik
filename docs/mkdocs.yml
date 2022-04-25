@@ -160,6 +160,7 @@ nav:
           - 'Instana': 'observability/tracing/instana.md'
           - 'Haystack': 'observability/tracing/haystack.md'
           - 'Elastic': 'observability/tracing/elastic.md'
+          - 'OpenTelemetry': 'observability/tracing/opentelemetry.md'
   - 'User Guides':
       - 'Kubernetes and Let''s Encrypt': 'user-guides/crd-acme/index.md'
       - 'gRPC Examples': 'user-guides/grpc.md'
