@@ -73,10 +73,13 @@ require (
 	go.elastic.co/apm/module/apmot v1.13.1
 	go.opentelemetry.io/otel v1.6.3
 	go.opentelemetry.io/otel/bridge/opentracing v1.6.3
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric v0.29.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.6.3
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.6.3
+	go.opentelemetry.io/otel/metric v0.29.0
 	go.opentelemetry.io/otel/sdk v1.6.3
 	go.opentelemetry.io/otel/trace v1.6.3
+	go.uber.org/goleak v1.1.12 // indirect
 	golang.org/x/mod v0.4.2
 	golang.org/x/net v0.0.0-20211209124913-491a49abca63
 	golang.org/x/sys v0.0.0-20210817190340-bfb29a6856f2 // indirect
