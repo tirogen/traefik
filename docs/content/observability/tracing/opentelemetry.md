@@ -19,8 +19,9 @@ tracing:
 
 ```bash tab="CLI"
 --tracing.openTelemetry=true
-```:wq
+```
 
+!!! info "The OpenTelemetry trace reporter will export traces to the collector by using [HTTP](#http-configuration) by default"
 
 #### `endpoint`
 
@@ -42,28 +43,6 @@ tracing:
 
 ```bash tab="CLI"
 --tracing.openTelemetry.endpoint=localhost:4318
-```
-
-#### `urlPath`
-
-_Optional, Default="/v1/traces"_
-
-Override the default URL path used for sending traces.
-
-```yaml tab="File (YAML)"
-tracing:
-  openTelemetry:
-    urlPath: /v1/traces
-```
-
-```toml tab="File (TOML)"
-[tracing]
-  [tracing.openTelemetry]
-    urlPath = "/v1/traces"
-```
-
-```bash tab="CLI"
---tracing.openTelemetry.urlPath="/v1/traces"
 ```
 
 #### `insecure`
@@ -245,4 +224,116 @@ tracing:
 
 ```bash tab="CLI"
 --tracing.openTelemetry.retry.maxElapsedTime=10s
+```
+
+#### HTTP configuration
+
+This instructs the reporter to send spans to the OpenTelemetry Collector using HTTP:
+
+```yaml tab="File (YAML)"
+tracing:
+  openTelemetry:
+    http: {}
+```
+
+```toml tab="File (TOML)"
+[tracing]
+  [tracing.openTelemetry.http]
+```
+
+```bash tab="CLI"
+--tracing.openTelemetry.http=true
+```
+
+##### `urlPath`
+
+_Optional, Default="/v1/traces"_
+
+Override the default URL path used for sending traces.
+
+```yaml tab="File (YAML)"
+tracing:
+  openTelemetry:
+    http:
+      urlPath: /v1/traces
+```
+
+```toml tab="File (TOML)"
+[tracing]
+  [tracing.openTelemetry]
+    [tracing.openTelemetry.http]
+      urlPath = "/v1/traces"
+```
+
+```bash tab="CLI"
+--tracing.openTelemetry.http.urlPath="/v1/traces"
+```
+
+#### GRPC configuration
+
+This instructs the reporter to send spans to the OpenTelemetry Collector using GRPC:
+
+```yaml tab="File (YAML)"
+tracing:
+  openTelemetry:
+    grpc: {}
+```
+
+```toml tab="File (TOML)"
+[tracing]
+  [tracing.openTelemetry.grpc]
+```
+
+```bash tab="CLI"
+--tracing.openTelemetry.grpc=true
+```
+
+##### `reconnectionPeriod`
+
+_Optional_
+
+The minimum amount of time between connection attempts to the target endpoint.
+
+```yaml tab="File (YAML)"
+tracing:
+  openTelemetry:
+    grpc:
+      reconnectionPeriod: 30s
+```
+
+```toml tab="File (TOML)"
+[tracing]
+  [tracing.openTelemetry]
+    [tracing.openTelemetry.grpc]
+      reconnectionPeriod = "30s"
+```
+
+```bash tab="CLI"
+--tracing.openTelemetry.grpc.reconnectionPeriod=30s
+```
+
+##### `serviceConfig`
+
+_Optional_
+
+Defines the JSON representation of the default gRPC service config used.
+
+For more information about service configurations, see: https://github.com/grpc/grpc/blob/master/doc/service_config.md
+
+```yaml tab="File (YAML)"
+tracing:
+  openTelemetry:
+    grpc:
+      serviceConfig: {}
+```
+
+```toml tab="File (TOML)"
+[tracing]
+  [tracing.openTelemetry]
+    [tracing.openTelemetry.grpc]
+      serviceConfig = "{}"
+```
+
+```bash tab="CLI"
+--tracing.openTelemetry.grpc.serviceConfig={}
 ```
