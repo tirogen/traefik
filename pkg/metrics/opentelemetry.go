@@ -2,28 +2,388 @@ package metrics
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"time"
 
+	"github.com/go-kit/kit/metrics"
+	"github.com/traefik/traefik/v2/pkg/log"
 	"github.com/traefik/traefik/v2/pkg/types"
-	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric"
-	"go.opentelemetry.io/otel/metric/nonrecording"
+	traefikversion "github.com/traefik/traefik/v2/pkg/version"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/global"
+	"go.opentelemetry.io/otel/metric/instrument"
+	"go.opentelemetry.io/otel/metric/instrument/asyncfloat64"
+	"go.opentelemetry.io/otel/metric/instrument/syncfloat64"
+	"go.opentelemetry.io/otel/metric/unit"
+	histo "go.opentelemetry.io/otel/sdk/metric/aggregator/histogram"
+	controller "go.opentelemetry.io/otel/sdk/metric/controller/basic"
+	"go.opentelemetry.io/otel/sdk/metric/export"
+	"go.opentelemetry.io/otel/sdk/metric/export/aggregation"
+	processor "go.opentelemetry.io/otel/sdk/metric/processor/basic"
+	"go.opentelemetry.io/otel/sdk/metric/selector/simple"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"google.golang.org/grpc/encoding/gzip"
 )
 
-type instruments struct {
-	reqCounter metric.Int64Counter
-	reqGauge   metric.Int64UpDownCounter
-}
+var openTelemetryController *controller.Controller
 
 // RegisterOpenTelemetry registers all OpenTelemetry metrics.
 func RegisterOpenTelemetry(ctx context.Context, config *types.OpenTelemetry) Registry {
-	var exporter *otlpmetric.Exporter
-	meter := nonrecording.NewNoopMeterProvider().Meter("Traefik")
+	if openTelemetryController == nil {
+		var err error
+		if openTelemetryController, err = newOpenTelemetryController(ctx, config); err != nil {
+			log.FromContext(ctx).Error(err)
+			return nil
+		}
+	}
 
-	// This is just a sample of memory stats to record from the Memstats
-	heapAlloc, _ := meter.AsyncInt64().UpDownCounter("heapAllocs")
-	gcCount, _ := meter.AsyncInt64().Counter("gcCount")
-	gcPause, _ := meter.SyncFloat64().Histogram("gcPause")
+	// TODO add schema URL
+	meter := global.Meter("github.com/traefik/traefik",
+		metric.WithInstrumentationVersion(traefikversion.Version))
 
-	otel.Get
+	reg := &standardRegistry{
+		epEnabled:                      config.AddEntryPointsLabels,
+		routerEnabled:                  config.AddRoutersLabels,
+		svcEnabled:                     config.AddServicesLabels,
+		configReloadsCounter:           newOTLPCounterFrom(meter, configReloadsTotalName, "Config reloads", []string{}, unit.Dimensionless),
+		configReloadsFailureCounter:    newOTLPCounterFrom(meter, configReloadsFailuresTotalName, "Config failure reloads", []string{}, unit.Dimensionless),
+		lastConfigReloadSuccessGauge:   newOTLPGaugeFrom(meter, configLastReloadSuccessName, "Last config reload success", []string{}, unit.Milliseconds),
+		lastConfigReloadFailureGauge:   newOTLPGaugeFrom(meter, configLastReloadFailureName, "Last config reload failure", []string{}, unit.Milliseconds),
+		tlsCertsNotAfterTimestampGauge: newOTLPGaugeFrom(meter, tlsCertsNotAfterTimestamp, "Certificate expiration timestamp", []string{}, unit.Milliseconds),
+	}
 
-	return nil
+	if config.AddEntryPointsLabels {
+		reg.entryPointReqsCounter = newOTLPCounterFrom(meter, entryPointReqsTotalName,
+			"How many HTTP requests processed on an entrypoint, partitioned by status code, protocol, and method.",
+			[]string{"code", "method", "protocol", "entrypoint"}, unit.Dimensionless)
+		reg.entryPointReqsTLSCounter = newOTLPCounterFrom(meter, entryPointReqsTLSTotalName,
+			"How many HTTP requests with TLS processed on an entrypoint, partitioned by TLS Version and TLS cipher Used.",
+			[]string{"code", "method", "protocol", "entrypoint"}, unit.Dimensionless)
+		reg.entryPointReqDurationHistogram, _ = NewHistogramWithScale(newOTLPHistogramFrom(meter, entryPointReqDurationName,
+			"How long it took to process the request on an entrypoint, partitioned by status code, protocol, and method.",
+			[]string{"code", "method", "protocol", "entrypoint"}, unit.Milliseconds), time.Second)
+		reg.entryPointOpenConnsGauge = newOTLPGaugeFrom(meter, entryPointOpenConnsName,
+			"How many open connections exist on an entrypoint, partitioned by method and protocol.",
+			[]string{"method", "protocol", "entrypoint"}, unit.Dimensionless)
+	}
+
+	if config.AddRoutersLabels {
+		reg.routerReqsCounter = newOTLPCounterFrom(meter, routerReqsTotalName,
+			"How many HTTP requests are processed on a router, partitioned by service, status code, protocol, and method.",
+			[]string{"code", "method", "protocol", "router", "service"}, unit.Dimensionless)
+		reg.routerReqsTLSCounter = newOTLPCounterFrom(meter, routerReqsTLSTotalName,
+			"How many HTTP requests with TLS are processed on a router, partitioned by service, TLS Version, and TLS cipher Used.",
+			[]string{"tls_version", "tls_cipher", "router", "service"}, unit.Dimensionless)
+		reg.routerReqDurationHistogram, _ = NewHistogramWithScale(newOTLPHistogramFrom(meter, routerReqDurationName,
+			"How long it took to process the request on a router, partitioned by service, status code, protocol, and method.",
+			[]string{"code", "method", "protocol", "router", "service"}, unit.Milliseconds), time.Second)
+		reg.routerOpenConnsGauge = newOTLPGaugeFrom(meter, routerOpenConnsName,
+			"How many open connections exist on a router, partitioned by service, method, and protocol.",
+			[]string{"method", "protocol", "router", "service"}, unit.Dimensionless)
+	}
+
+	if config.AddServicesLabels {
+		reg.serviceReqsCounter = newOTLPCounterFrom(meter, serviceReqsTotalName,
+			"How many HTTP requests processed on a service, partitioned by status code, protocol, and method.",
+			[]string{"code", "method", "protocol", "service"}, unit.Dimensionless)
+		reg.serviceReqsTLSCounter = newOTLPCounterFrom(meter, serviceReqsTLSTotalName,
+			"How many HTTP requests with TLS processed on a service, partitioned by TLS version and TLS cipher.",
+			[]string{"tls_version", "tls_cipher", "service"}, unit.Dimensionless)
+		reg.serviceReqDurationHistogram, _ = NewHistogramWithScale(newOTLPHistogramFrom(meter, serviceReqDurationName,
+			"How long it took to process the request on a service, partitioned by status code, protocol, and method.",
+			[]string{"code", "method", "protocol", "service"}, unit.Milliseconds), time.Second)
+		reg.serviceOpenConnsGauge = newOTLPGaugeFrom(meter, serviceOpenConnsName,
+			"How many open connections exist on a service, partitioned by method and protocol.",
+			[]string{"method", "protocol", "service"}, unit.Dimensionless)
+		reg.serviceRetriesCounter = newOTLPCounterFrom(meter, serviceRetriesTotalName,
+			"How many request retries happened on a service.",
+			[]string{"service"}, unit.Dimensionless)
+		reg.serviceServerUpGauge = newOTLPGaugeFrom(meter, serviceServerUpName,
+			"service server is up, described by gauge value of 0 or 1.",
+			[]string{"service", "url"}, unit.Dimensionless)
+	}
+
+	log.FromContext(ctx).Debug("Opentracing metrics configured")
+
+	return reg
+}
+
+// StopOpenTelemetry stops and resets Open-Telemetry client.
+func StopOpenTelemetry() {
+	if openTelemetryController == nil {
+		return
+	}
+
+	if err := openTelemetryController.Stop(context.Background()); err != nil {
+		log.WithoutContext().Error(err)
+	}
+}
+
+// newOpenTelemetryController creates a new controller.Controller.
+func newOpenTelemetryController(ctx context.Context, config *types.OpenTelemetry) (*controller.Controller, error) {
+	if config.HTTP != nil && config.GRPC != nil {
+		return nil, errors.New("cannot define HTTP and GRPC controller concurrently")
+	}
+
+	if config.HTTP == nil && config.GRPC == nil {
+		// return nil, nil, errors.New("cannot define Open Telemetry tracer without defining one of the HTTP or GRPC exporter configuration")
+		config.HTTP = &types.OTELHTTP{}
+		config.HTTP.SetDefaults()
+	}
+
+	if config.CollectPeriod <= 0 {
+		return nil, errors.New("CollectPeriod must be a valid Duration")
+	}
+
+	factory := processor.NewFactory(
+		simple.NewWithHistogramDistribution(histo.WithExplicitBoundaries(config.ExplicitBoundaries)),
+		aggregation.CumulativeTemporalitySelector(),
+		processor.WithMemory(config.WithMemory),
+	)
+
+	var (
+		exporter export.Exporter
+		err      error
+	)
+	if config.HTTP != nil {
+		exporter, err = newHTTPExporter(ctx, config)
+	} else {
+		exporter, err = newGRPCExporter(ctx, config)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO add schema URL
+	optsResource := []resource.Option{
+		resource.WithAttributes(),
+		resource.WithContainer(),
+		resource.WithContainerID(),
+		resource.WithDetectors(),
+		resource.WithFromEnv(),
+		resource.WithHost(),
+		resource.WithOS(),
+		resource.WithOSDescription(),
+		resource.WithOSType(),
+		resource.WithProcess(),
+		resource.WithProcessCommandArgs(),
+		resource.WithProcessExecutableName(),
+		resource.WithProcessExecutablePath(),
+		resource.WithProcessOwner(),
+		resource.WithProcessPID(),
+		resource.WithProcessRuntimeDescription(),
+		resource.WithProcessRuntimeName(),
+		resource.WithProcessRuntimeVersion(),
+		resource.WithTelemetrySDK(),
+	}
+
+	r, err := resource.New(ctx, optsResource...)
+	if err != nil {
+		return nil, err
+	}
+
+	optsController := []controller.Option{
+		controller.WithCollectPeriod(time.Duration(config.CollectPeriod)),
+		controller.WithCollectTimeout(time.Duration(config.CollectTimeout)),
+		controller.WithExporter(exporter),
+		controller.WithResource(r),
+	}
+
+	c := controller.New(factory, optsController...)
+
+	global.SetMeterProvider(c)
+
+	if err := c.Start(ctx); err != nil {
+		return nil, err
+	}
+
+	return c, nil
+}
+
+func newHTTPExporter(ctx context.Context, config *types.OpenTelemetry) (export.Exporter, error) {
+	// TODO Handle TLSClientConfig
+	opts := []otlpmetrichttp.Option{
+		otlpmetrichttp.WithEndpoint(config.Endpoint),
+		otlpmetrichttp.WithHeaders(config.Headers),
+		otlpmetrichttp.WithTimeout(config.Timeout),
+		otlpmetrichttp.WithURLPath(config.HTTP.URLPath),
+	}
+
+	if config.Compress {
+		opts = append(opts, otlpmetrichttp.WithCompression(otlpmetrichttp.GzipCompression))
+	}
+
+	if config.Insecure {
+		opts = append(opts, otlpmetrichttp.WithInsecure())
+	}
+
+	if config.Retry != nil {
+		opts = append(opts, otlpmetrichttp.WithRetry(otlpmetrichttp.RetryConfig{
+			Enabled:         true,
+			InitialInterval: config.Retry.InitialInterval,
+			MaxElapsedTime:  config.Retry.MaxElapsedTime,
+			MaxInterval:     config.Retry.MaxInterval,
+		}))
+	}
+
+	return otlpmetrichttp.New(ctx, opts...)
+
+}
+
+func newGRPCExporter(ctx context.Context, config *types.OpenTelemetry) (export.Exporter, error) {
+	// TODO: handle DialOption, TLSCredentials
+	opts := []otlpmetricgrpc.Option{
+		otlpmetricgrpc.WithServiceConfig(config.GRPC.ServiceConfig),
+		otlpmetricgrpc.WithHeaders(config.Headers),
+		otlpmetricgrpc.WithReconnectionPeriod(config.GRPC.ReconnectionPeriod),
+		otlpmetricgrpc.WithEndpoint(config.Endpoint),
+		otlpmetricgrpc.WithTimeout(config.Timeout),
+	}
+
+	if config.Compress {
+		opts = append(opts, otlpmetricgrpc.WithCompressor(gzip.Name))
+
+	}
+
+	if config.Insecure {
+		opts = append(opts, otlpmetricgrpc.WithInsecure())
+
+	}
+
+	if config.Retry != nil {
+		opts = append(opts, otlpmetricgrpc.WithRetry(otlpmetricgrpc.RetryConfig{
+			Enabled:         true,
+			InitialInterval: config.Retry.InitialInterval,
+			MaxInterval:     config.Retry.MaxInterval,
+			MaxElapsedTime:  config.Retry.MaxElapsedTime,
+		}))
+	}
+
+	return otlpmetricgrpc.New(ctx, opts...)
+}
+
+func newOTLPCounterFrom(meter metric.Meter, name, desc string, labelNames []string, u unit.Unit) *otelCounter {
+	c, _ := meter.SyncFloat64().UpDownCounter(name,
+		instrument.WithDescription(desc),
+		instrument.WithUnit(u),
+	)
+
+	return &otelCounter{
+		labelNamesValues: labelNames,
+		ip:               c,
+	}
+}
+
+type otelCounter struct {
+	labelNamesValues otelLabelNamesValues
+	ip               syncfloat64.UpDownCounter
+}
+
+func (c *otelCounter) With(labelValues ...string) metrics.Counter {
+	return &otelCounter{
+		labelNamesValues: c.labelNamesValues.With(labelValues...),
+		ip:               c.ip,
+	}
+}
+
+func (c *otelCounter) Add(delta float64) {
+	c.ip.Add(context.Background(), delta, c.labelNamesValues.ToLabels()...)
+}
+
+func newOTLPGaugeFrom(meter metric.Meter, name, desc string, labelNames []string, u unit.Unit) *otelGauge {
+	c, _ := meter.AsyncFloat64().Gauge(name,
+		instrument.WithDescription(desc),
+		instrument.WithUnit(u),
+	)
+
+	return &otelGauge{
+		labelNamesValues: labelNames,
+		ip:               c,
+	}
+}
+
+type otelGauge struct {
+	labelNamesValues otelLabelNamesValues
+	ip               asyncfloat64.Gauge
+
+	mu    sync.Mutex
+	value float64
+}
+
+func (g *otelGauge) With(labelValues ...string) metrics.Gauge {
+	return &otelGauge{
+		labelNamesValues: g.labelNamesValues.With(labelValues...),
+		ip:               g.ip,
+	}
+}
+
+func (g *otelGauge) Add(delta float64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.value += delta
+
+	g.ip.Observe(context.Background(), g.value, g.labelNamesValues.ToLabels()...)
+}
+
+func (g *otelGauge) Set(value float64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.value = value
+
+	g.ip.Observe(context.Background(), value, g.labelNamesValues.ToLabels()...)
+}
+
+func newOTLPHistogramFrom(meter metric.Meter, name, desc string, labelNames []string, u unit.Unit) *otelHistogram {
+	c, _ := meter.SyncFloat64().Histogram(name,
+		instrument.WithDescription(desc),
+		instrument.WithUnit(u),
+	)
+
+	return &otelHistogram{
+		labelNamesValues: labelNames,
+		ip:               c,
+	}
+}
+
+type otelHistogram struct {
+	labelNamesValues otelLabelNamesValues
+	ip               syncfloat64.Histogram
+}
+
+func (h *otelHistogram) With(labelValues ...string) metrics.Histogram {
+	return &otelHistogram{
+		labelNamesValues: h.labelNamesValues.With(labelValues...),
+		ip:               h.ip,
+	}
+}
+
+func (h *otelHistogram) Observe(incr float64) {
+	h.ip.Record(context.Background(), incr, h.labelNamesValues.ToLabels()...)
+}
+
+// otelLabelNamesValues is a type alias that provides validation on its With method.
+// Metrics may include it as a member to help them satisfy With semantics and
+// save some code duplication.
+type otelLabelNamesValues []string
+
+// With validates the input, and returns a new aggregate otelLabelNamesValues.
+func (lvs otelLabelNamesValues) With(labelValues ...string) otelLabelNamesValues {
+	if len(labelValues)%2 != 0 {
+		labelValues = append(labelValues, "unknown")
+	}
+	return append(lvs, labelValues...)
+}
+
+// ToLabels is a convenience method to convert a otelLabelNamesValues
+// to the native attribute.KeyValue.
+func (lvs otelLabelNamesValues) ToLabels() []attribute.KeyValue {
+	labels := make([]attribute.KeyValue, len(lvs)/2)
+	for i := 0; i < len(lvs); i += 2 {
+		labels[i] = attribute.String(lvs[i], lvs[i+1])
+	}
+	return labels
 }

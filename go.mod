@@ -10,7 +10,6 @@ require (
 	github.com/Shopify/sarama v1.23.1 // indirect
 	github.com/abbot/go-http-auth v0.0.0-00010101000000-000000000000
 	github.com/aws/aws-sdk-go v1.39.0
-	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.2
 	github.com/compose-spec/compose-go v1.0.3
 	github.com/containerd/containerd v1.5.9 // indirect
@@ -74,14 +73,19 @@ require (
 	go.elastic.co/apm/module/apmot v1.13.1
 	go.opentelemetry.io/otel v1.6.3
 	go.opentelemetry.io/otel/bridge/opentracing v1.6.3
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v0.29.0
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v0.29.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.6.3
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.6.3
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.6.3
+	go.opentelemetry.io/otel/metric v0.29.0
 	go.opentelemetry.io/otel/sdk v1.6.3
+	go.opentelemetry.io/otel/sdk/metric v0.29.0
 	go.opentelemetry.io/otel/trace v1.6.3
+	go.opentelemetry.io/proto/otlp v0.16.0 // indirect
 	golang.org/x/mod v0.4.2
 	golang.org/x/net v0.0.0-20211209124913-491a49abca63
-	golang.org/x/sys v0.0.0-20210817190340-bfb29a6856f2 // indirect
+	golang.org/x/sys v0.0.0-20220422013727-9388b58f7150 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
 	golang.org/x/tools v0.1.6-0.20210726203631-07bc1bf47fb2
 	google.golang.org/grpc v1.45.0
