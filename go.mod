@@ -10,7 +10,7 @@ require (
 	github.com/Shopify/sarama v1.23.1 // indirect
 	github.com/abbot/go-http-auth v0.0.0-00010101000000-000000000000
 	github.com/aws/aws-sdk-go v1.39.0
-	github.com/cenkalti/backoff/v4 v4.1.2
+	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/compose-spec/compose-go v1.0.3
 	github.com/containerd/containerd v1.5.9 // indirect
 	github.com/containous/alice v0.0.0-20181107144136-d83ebdd94cbd
@@ -27,7 +27,9 @@ require (
 	github.com/go-check/check v0.0.0-00010101000000-000000000000
 	github.com/go-kit/kit v0.10.1-0.20200915143503-439c4d2ed3ea
 	github.com/golang/protobuf v1.5.2
+	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/go-github/v28 v28.1.1
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/hashicorp/consul v1.10.4
@@ -38,14 +40,16 @@ require (
 	github.com/influxdata/influxdb-client-go/v2 v2.7.0
 	github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d
 	github.com/instana/go-sensor v1.38.3
-	github.com/klauspost/compress v1.13.0
+	github.com/instana/testify v1.6.2-0.20200721153833-94b1851f4d65
+	github.com/klauspost/compress v1.15.1
 	github.com/kvtools/valkeyrie v0.4.0
 	github.com/lucas-clemente/quic-go v0.27.0
+	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
 	github.com/miekg/dns v1.1.45
-	github.com/mitchellh/copystructure v1.0.0
+	github.com/mitchellh/copystructure v1.2.0
 	github.com/mitchellh/hashstructure v1.0.0
-	github.com/mitchellh/mapstructure v1.4.2
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/openzipkin-contrib/zipkin-go-opentracing v0.4.5
 	github.com/openzipkin/zipkin-go v0.2.2
@@ -53,10 +57,13 @@ require (
 	github.com/philhofer/fwd v1.0.0 // indirect
 	github.com/pires/go-proxyproto v0.6.1
 	github.com/pmezard/go-difflib v1.0.0
-	github.com/prometheus/client_golang v1.11.0
+	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/client_model v0.2.0
+	github.com/prometheus/common v0.34.0 // indirect
 	github.com/rancher/go-rancher-metadata v0.0.0-20200311180630-7f4c936a06ac
 	github.com/sirupsen/logrus v1.8.1
+	github.com/spf13/cast v1.4.1 // indirect
+	github.com/spf13/cobra v1.4.0 // indirect
 	github.com/stretchr/testify v1.7.1
 	github.com/stvp/go-udp-testing v0.0.0-20191102171040-06b61409b154
 	github.com/tinylib/msgp v1.0.2 // indirect
@@ -71,6 +78,7 @@ require (
 	github.com/vulcand/predicate v1.1.0
 	go.elastic.co/apm v1.13.1
 	go.elastic.co/apm/module/apmot v1.13.1
+	go.opentelemetry.io/collector/pdata v0.50.0
 	go.opentelemetry.io/otel v1.6.3
 	go.opentelemetry.io/otel/bridge/opentracing v1.6.3
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v0.29.0
@@ -83,12 +91,16 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v0.29.0
 	go.opentelemetry.io/otel/trace v1.6.3
 	go.opentelemetry.io/proto/otlp v0.16.0 // indirect
+	go.uber.org/atomic v1.9.0 // indirect
+	go.uber.org/multierr v1.8.0 // indirect
+	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/mod v0.4.2
-	golang.org/x/net v0.0.0-20211209124913-491a49abca63
+	golang.org/x/net v0.0.0-20220225172249-27dd8689420f
 	golang.org/x/sys v0.0.0-20220422013727-9388b58f7150 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
 	golang.org/x/tools v0.1.6-0.20210726203631-07bc1bf47fb2
-	google.golang.org/grpc v1.45.0
+	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
+	google.golang.org/grpc v1.46.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.19.0
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b

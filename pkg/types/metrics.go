@@ -136,16 +136,16 @@ type OpenTelemetry struct {
 	AddEntryPointsLabels bool              `description:"Enable metrics on entry points." json:"addEntryPointsLabels,omitempty" toml:"addEntryPointsLabels,omitempty" yaml:"addEntryPointsLabels,omitempty" export:"true"`
 	AddRoutersLabels     bool              `description:"Enable metrics on routers." json:"addRoutersLabels,omitempty" toml:"addRoutersLabels,omitempty" yaml:"addRoutersLabels,omitempty" export:"true"`
 	AddServicesLabels    bool              `description:"Enable metrics on services." json:"addServicesLabels,omitempty" toml:"addServicesLabels,omitempty" yaml:"addServicesLabels,omitempty" export:"true"`
-	ExplicitBoundaries   []float64         `description:"Boundaries for latency metrics." json:"explicitBoundaries,omitempty" toml:"explicitBoundaries,omitempty" yaml:"explicitBoundaries,omitempty" export:"true"`
-	WithMemory           bool              `description:"Controls whether the processor remembers metric instruments and label sets that were previously reported." json:"withMemory,omitempty" toml:"withMemory,omitempty" yaml:"withMemory,omitempty" export:"true"`
-	CollectPeriod        types.Duration    `description:"The interval between calls to Collect a checkpoint." json:"collectPeriod,omitempty" toml:"collectPeriod,omitempty" yaml:"collectPeriod,omitempty" export:"true"`
-	CollectTimeout       types.Duration    `description:"Timeout of the Context passed to obeserver." json:"collectTimeout,omitempty" toml:"collectTimeout,omitempty" yaml:"collectTimeout,omitempty" export:"true"`
 	Compress             bool              `description:"Enable compression on the sent data." json:"compress,omitempty" toml:"compress,omitempty" yaml:"compress,omitempty" export:"true"`
-	Endpoint             string            `description:"Address of the collector endpoint." json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	Endpoint             string            `description:"Address of the collector endpoint." json:"endpoint,omitempty" toml:"endpoint,omitempty" yaml:"endpoint,omitempty"` // FIXME -> address
+	ExplicitBoundaries   []float64         `description:"Boundaries for latency metrics." json:"explicitBoundaries,omitempty" toml:"explicitBoundaries,omitempty" yaml:"explicitBoundaries,omitempty" export:"true"`
 	Headers              map[string]string `description:"Headers sent with payload." json:"headers,omitempty" toml:"headers,omitempty" yaml:"headers,omitempty" export:"true"`
 	Insecure             bool              `description:"Connect to endpoint using HTTP." json:"insecure,omitempty" toml:"insecure,omitempty" yaml:"insecure,omitempty" export:"true"`
+	PushInterval         types.Duration    `description:"The interval between calls to Collect a checkpoint." json:"pushInterval,omitempty" toml:"pushInterval,omitempty" yaml:"pushInterval,omitempty" export:"true"`
+	PushTimeout          types.Duration    `description:"Timeout of the Context passed to observer." json:"pushTimeout,omitempty" toml:"pushTimeout,omitempty" yaml:"pushTimeout,omitempty" export:"true"`
 	Retry                *retry            `description:"The retry policy for transient errors that may occurs when exporting traces." json:"retry,omitempty" toml:"retry,omitempty" yaml:"retry,omitempty" export:"true"`
 	Timeout              time.Duration     `description:"The max waiting time for the backend to process each spans batch." json:"timeout,omitempty" toml:"timeout,omitempty" yaml:"timeout,omitempty" export:"true"`
+	WithMemory           bool              `description:"Controls whether the processor remembers metric instruments and label sets that were previously reported." json:"withMemory,omitempty" toml:"withMemory,omitempty" yaml:"withMemory,omitempty" export:"true"`
 }
 
 // SetDefaults sets the default values.
@@ -153,9 +153,10 @@ func (o *OpenTelemetry) SetDefaults() {
 	o.AddEntryPointsLabels = true
 	o.AddServicesLabels = true
 	o.ExplicitBoundaries = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
-	o.CollectPeriod = types.Duration(10 * time.Second)
-	o.CollectTimeout = types.Duration(10 * time.Second)
+	o.PushInterval = types.Duration(10 * time.Second)
+	o.PushTimeout = types.Duration(10 * time.Second)
 	o.Endpoint = "localhost:4318"
+	o.Timeout = 10 * time.Second
 }
 
 // OTELHTTP provides configuration settings for an open-telemetry metrics reporter.
@@ -176,7 +177,6 @@ type OTELGRPC struct {
 
 // SetDefaults sets the default values.
 func (o *OTELGRPC) SetDefaults() {
-
 }
 
 type retry struct {

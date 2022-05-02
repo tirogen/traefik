@@ -49,7 +49,7 @@ tracing:
 
 _Optional, Default=false_
 
-Allows reporter to send span to the OpenTelemetry Collector using the HTTP protocol.
+Allows reporter to send span to the OpenTelemetry Collector without using a secured protocol.
 
 ```yaml tab="File (YAML)"
 tracing:
@@ -140,7 +140,7 @@ tracing:
 
 _Optional_
 
-Enable retries when the reporter sends span to the OpenTelemetry Collector.
+Enable retries when the reporter sends spans to the OpenTelemetry Collector.
 
 ```yaml tab="File (YAML)"
 tracing:
