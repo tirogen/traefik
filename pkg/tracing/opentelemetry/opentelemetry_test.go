@@ -8,7 +8,6 @@ import (
 )
 
 func TestOpenTelemetrySetup(t *testing.T) {
-
 	tests := []struct {
 		desc    string
 		config  Config
@@ -43,7 +42,7 @@ func TestOpenTelemetrySetup(t *testing.T) {
 		test := test
 
 		t.Run(test.desc, func(t *testing.T) {
-			_, closer, err := test.config.Setup("testCompoment")
+			_, closer, err := test.config.Setup("testComponent")
 			if test.wantErr {
 				require.Nil(t, closer)
 				assert.Error(t, err)
