@@ -21,6 +21,8 @@ metrics:
 --metrics.openTelemetry=true
 ```
 
+!!! info "The OpenTelemetry trace reporter will export traces to the collector by using [HTTP](#http-configuration) by default"
+
 #### `addEntryPointsLabels`
 
 _Optional, Default=true_
@@ -41,6 +43,28 @@ metrics:
 
 ```bash tab="CLI"
 --metrics.openTelemetry.addEntryPointsLabels=true
+```
+
+#### `address`
+
+_Required, Default="localhost:4318"_
+
+Address instructs exporter to send metrics to OpenTelemetry at this address.
+
+```yaml tab="File (YAML)"
+metrics:
+  openTelemetry:
+    address: localhost:8089
+```
+
+```toml tab="File (TOML)"
+[metrics]
+  [metrics.openTelemetry]
+    address = "localhost:8089"
+```
+
+```bash tab="CLI"
+--metrics.openTelemetry.address=localhost:8089
 ```
 
 #### `addRoutersLabels`
@@ -87,7 +111,29 @@ metrics:
 --metrics.openTelemetry.addServicesLabels=true
 ```
 
-#### `buckets`
+#### `compress`
+
+_Optional, Default=false_
+
+Allows reporter to send metrics to the OpenTelemetry Collector using gzip compression.
+
+```yaml tab="File (YAML)"
+metrics:
+  openTelemetry:
+    compress: true
+```
+
+```toml tab="File (TOML)"
+[metrics]
+  [metrics.openTelemetry]
+    compress = true
+```
+
+```bash tab="CLI"
+--metrics.openTelemetry.compress=true
+```
+
+#### `explicitBoundaries`
 
 _Optional, Default=".005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10"_
 
@@ -111,72 +157,6 @@ metrics:
 
 ```bash tab="CLI"
 --metrics.openTelemetry.explicitBoundaries=0.1,0.3,1.2,5.0
-```
-
-#### `withMemory`
-
-_Optional, Default=false_
-
-Controls whether the processor remembers metric instruments and label sets that were previously reported.
-
-```yaml tab="File (YAML)"
-metrics:
-  openTelemetry:
-    withMemory: true
-```
-
-```toml tab="File (TOML)"
-[metrics]
-  [metrics.openTelemetry]
-    withMemory = true
-```
-
-```bash tab="CLI"
---metrics.openTelemetry.withMemory=true
-```
-
-#### `compress`
-
-_Optional, Default=false_
-
-Allows reporter to send metrics to the OpenTelemetry Collector using gzip compression.
-
-```yaml tab="File (YAML)"
-metrics:
-  openTelemetry:
-    compress: true
-```
-
-```toml tab="File (TOML)"
-[metrics]
-  [metrics.openTelemetry]
-    compress = true
-```
-
-```bash tab="CLI"
---metrics.openTelemetry.compress=true
-```
-
-#### `endpoint`
-
-_Required, Default="localhost:4318"_
-
-Endpoint instructs exporter to send metrics to influxdb at this address.
-
-```yaml tab="File (YAML)"
-metrics:
-  openTelemetry:
-    endpoint: localhost:8089
-```
-
-```toml tab="File (TOML)"
-[metrics]
-  [metrics.openTelemetry]
-    endpoint = "localhost:8089"
-```
-
-```bash tab="CLI"
---metrics.openTelemetry.endpoint=localhost:8089
 ```
 
 #### `headers`
@@ -208,7 +188,7 @@ metrics:
 
 _Optional, Default=false_
 
-Allows reporter to send span to the OpenTelemetry Collector without using a secured protocol.
+Allows reporter to send metrics to the OpenTelemetry Collector without using a secured protocol.
 
 ```yaml tab="File (YAML)"
 metrics:
@@ -384,6 +364,28 @@ metrics:
 --metrics.openTelemetry.timeout=3s
 ```
 
+#### `withMemory`
+
+_Optional, Default=false_
+
+Controls whether the processor remembers metric instruments and label sets that were previously reported.
+
+```yaml tab="File (YAML)"
+metrics:
+  openTelemetry:
+    withMemory: true
+```
+
+```toml tab="File (TOML)"
+[metrics]
+  [metrics.openTelemetry]
+    withMemory = true
+```
+
+```bash tab="CLI"
+--metrics.openTelemetry.withMemory=true
+```
+
 #### HTTP configuration
 
 This instructs the reporter to send metrics to the OpenTelemetry Collector using HTTP:
@@ -476,7 +478,8 @@ _Optional_
 
 Defines the JSON representation of the default gRPC service config used.
 
-For more information about service configurations, see: https://github.com/grpc/grpc/blob/master/doc/service_config.md
+For more information about service configurations,
+see: [https://github.com/grpc/grpc/blob/master/doc/service_config.md](https://github.com/grpc/grpc/blob/master/doc/service_config.md)
 
 ```yaml tab="File (YAML)"
 metrics:

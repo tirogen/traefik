@@ -207,7 +207,7 @@ func newOpenTelemetryController(ctx context.Context, config *types.OpenTelemetry
 func newHTTPExporter(ctx context.Context, config *types.OpenTelemetry) (export.Exporter, error) {
 	// TODO Handle TLSClientConfig
 	opts := []otlpmetrichttp.Option{
-		otlpmetrichttp.WithEndpoint(config.Endpoint),
+		otlpmetrichttp.WithEndpoint(config.Address),
 		otlpmetrichttp.WithHeaders(config.Headers),
 		otlpmetrichttp.WithTimeout(config.Timeout),
 		otlpmetrichttp.WithURLPath(config.HTTP.URLPath),
@@ -239,7 +239,7 @@ func newGRPCExporter(ctx context.Context, config *types.OpenTelemetry) (export.E
 		otlpmetricgrpc.WithServiceConfig(config.GRPC.ServiceConfig),
 		otlpmetricgrpc.WithHeaders(config.Headers),
 		otlpmetricgrpc.WithReconnectionPeriod(config.GRPC.ReconnectionPeriod),
-		otlpmetricgrpc.WithEndpoint(config.Endpoint),
+		otlpmetricgrpc.WithEndpoint(config.Address),
 		otlpmetricgrpc.WithTimeout(config.Timeout),
 	}
 

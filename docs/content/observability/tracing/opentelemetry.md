@@ -23,50 +23,6 @@ tracing:
 
 !!! info "The OpenTelemetry trace reporter will export traces to the collector by using [HTTP](#http-configuration) by default"
 
-#### `endpoint`
-
-_Required, Default="localhost:4318"_
-
-This instructs the reporter to send spans to the OpenTelemetry Collector at this address (host:port).
-
-```yaml tab="File (YAML)"
-tracing:
-  openTelemetry:
-    endpoint: localhost:4318
-```
-
-```toml tab="File (TOML)"
-[tracing]
-  [tracing.openTelemetry]
-    endpoint = "localhost:4318"
-```
-
-```bash tab="CLI"
---tracing.openTelemetry.endpoint=localhost:4318
-```
-
-#### `insecure`
-
-_Optional, Default=false_
-
-Allows reporter to send span to the OpenTelemetry Collector without using a secured protocol.
-
-```yaml tab="File (YAML)"
-tracing:
-  openTelemetry:
-    insecure: true
-```
-
-```toml tab="File (TOML)"
-[tracing]
-  [tracing.openTelemetry]
-    insecure = true
-```
-
-```bash tab="CLI"
---tracing.openTelemetry.insecure=true
-```
-
 #### `compress`
 
 _Optional, Default=false_
@@ -89,26 +45,26 @@ tracing:
 --tracing.openTelemetry.compress=true
 ```
 
-#### `timeout`
+#### `endpoint`
 
-_Optional, Default="10s"_
+_Required, Default="localhost:4318"_
 
-The max waiting time for the backend to process each spans batch.
+This instructs the reporter to send spans to the OpenTelemetry Collector at this address (host:port).
 
 ```yaml tab="File (YAML)"
 tracing:
   openTelemetry:
-    timeout: 3s
+    endpoint: localhost:4318
 ```
 
 ```toml tab="File (TOML)"
 [tracing]
   [tracing.openTelemetry]
-    timeout = "3s"
+    endpoint = "localhost:4318"
 ```
 
 ```bash tab="CLI"
---tracing.openTelemetry.timeout=3s
+--tracing.openTelemetry.endpoint=localhost:4318
 ```
 
 #### `headers`
@@ -134,6 +90,28 @@ tracing:
 
 ```bash tab="CLI"
 --tracing.openTelemetry.headers.foo=bar --tracing.openTelemetry.headers.baz=buz
+```
+
+#### `insecure`
+
+_Optional, Default=false_
+
+Allows reporter to send span to the OpenTelemetry Collector without using a secured protocol.
+
+```yaml tab="File (YAML)"
+tracing:
+  openTelemetry:
+    insecure: true
+```
+
+```toml tab="File (TOML)"
+[tracing]
+  [tracing.openTelemetry]
+    insecure = true
+```
+
+```bash tab="CLI"
+--tracing.openTelemetry.insecure=true
 ```
 
 #### `retry`
@@ -180,6 +158,29 @@ tracing:
 --tracing.openTelemetry.retry.initialInterval=10s
 ```
 
+##### `maxElapsedTime`
+
+_Optional, Default=1m_
+
+The maximum amount of time (including retries) spent trying to send a request/batch.
+
+```yaml tab="File (YAML)"
+tracing:
+  openTelemetry:
+    retry:
+      maxElapsedTime: 10s
+```
+
+```toml tab="File (TOML)"
+[tracing]
+  [tracing.openTelemetry.retry]
+    maxElapsedTime = "10s"
+```
+
+```bash tab="CLI"
+--tracing.openTelemetry.retry.maxElapsedTime=10s
+```
+
 ##### `maxInterval`
 
 _Optional, Default=30s_
@@ -203,27 +204,26 @@ tracing:
 --tracing.openTelemetry.retry.maxInterval=10s
 ```
 
-##### `maxElapsedTime`
+#### `timeout`
 
-_Optional, Default=1m_
+_Optional, Default="10s"_
 
-The maximum amount of time (including retries) spent trying to send a request/batch.
+The max waiting time for the backend to process each spans batch.
 
 ```yaml tab="File (YAML)"
 tracing:
   openTelemetry:
-    retry:
-      maxElapsedTime: 10s
+    timeout: 3s
 ```
 
 ```toml tab="File (TOML)"
 [tracing]
-  [tracing.openTelemetry.retry]
-    maxElapsedTime = "10s"
+  [tracing.openTelemetry]
+    timeout = "3s"
 ```
 
 ```bash tab="CLI"
---tracing.openTelemetry.retry.maxElapsedTime=10s
+--tracing.openTelemetry.timeout=3s
 ```
 
 #### HTTP configuration

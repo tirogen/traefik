@@ -179,7 +179,7 @@ func TestOpenTelemetry(t *testing.T) {
 	(&cfg).SetDefaults()
 	cfg.AddRoutersLabels = true
 	cfg.Insecure = true
-	cfg.Endpoint = ts.Listener.Addr().String()
+	cfg.Address = ts.Listener.Addr().String()
 	cfg.PushInterval = ptypes.Duration(time.Millisecond)
 
 	registry := RegisterOpenTelemetry(context.Background(), &cfg)
