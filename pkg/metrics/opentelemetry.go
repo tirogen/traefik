@@ -29,7 +29,10 @@ import (
 	"google.golang.org/grpc/encoding/gzip"
 )
 
-var openTelemetryController *controller.Controller
+var (
+	openTelemetryController     *controller.Controller
+	openTelemetryGaugeCollector *gaugeCollector
+)
 
 // RegisterOpenTelemetry registers all OpenTelemetry metrics.
 func RegisterOpenTelemetry(ctx context.Context, config *types.OpenTelemetry) Registry {
@@ -39,6 +42,10 @@ func RegisterOpenTelemetry(ctx context.Context, config *types.OpenTelemetry) Reg
 			log.FromContext(ctx).Error(err)
 			return nil
 		}
+	}
+
+	if openTelemetryGaugeCollector == nil {
+		openTelemetryGaugeCollector = newOpenTelemetryGaugeCollector()
 	}
 
 	// TODO add schema URL
@@ -129,14 +136,13 @@ func newOpenTelemetryController(ctx context.Context, config *types.OpenTelemetry
 		return nil, errors.New("cannot define HTTP and GRPC controller concurrently")
 	}
 
-	if config.HTTP == nil && config.GRPC == nil {
-		// return nil, nil, errors.New("cannot define Open Telemetry tracer without defining one of the HTTP or GRPC exporter configuration")
-		config.HTTP = &types.OTELHTTP{}
-		config.HTTP.SetDefaults()
-	}
-
 	if config.PushInterval <= 0 {
 		return nil, errors.New("PushInterval must be greater than zero")
+	}
+
+	if config.HTTP == nil && config.GRPC == nil {
+		config.HTTP = &types.OTELHTTP{}
+		config.HTTP.SetDefaults()
 	}
 
 	factory := processor.NewFactory(
@@ -264,13 +270,12 @@ func newGRPCExporter(ctx context.Context, config *types.OpenTelemetry) (export.E
 }
 
 func newOTLPCounterFrom(meter metric.Meter, name, desc string, u unit.Unit) *otelCounter {
-	c, _ := meter.SyncFloat64().UpDownCounter(name,
+	c, _ := meter.SyncFloat64().Counter(name,
 		instrument.WithDescription(desc),
 		instrument.WithUnit(u),
 	)
 
 	return &otelCounter{
-		// labelNamesValues: labelNames,
 		ip: c,
 	}
 }
@@ -291,47 +296,82 @@ func (c *otelCounter) Add(delta float64) {
 	c.ip.Add(context.Background(), delta, c.labelNamesValues.ToLabels()...)
 }
 
+type gaugeCollector struct {
+	mu     sync.Mutex
+	values map[string]float64
+}
+
+func newOpenTelemetryGaugeCollector() *gaugeCollector {
+	return &gaugeCollector{
+		values: make(map[string]float64),
+	}
+}
+
 func newOTLPGaugeFrom(meter metric.Meter, name, desc string, u unit.Unit) *otelGauge {
+	openTelemetryGaugeCollector.mu.Lock()
+	defer openTelemetryGaugeCollector.mu.Unlock()
+	openTelemetryGaugeCollector.values[name] = 0
+
 	c, _ := meter.AsyncFloat64().Gauge(name,
 		instrument.WithDescription(desc),
 		instrument.WithUnit(u),
 	)
 
 	return &otelGauge{
-		// labelNamesValues: labelNames,
-		ip: c,
+		ip:   c,
+		name: name,
 	}
 }
 
 type otelGauge struct {
 	labelNamesValues otelLabelNamesValues
 	ip               asyncfloat64.Gauge
-
-	mu    sync.Mutex
-	value float64
+	name             string
 }
 
 func (g *otelGauge) With(labelValues ...string) metrics.Gauge {
+	log.WithoutContext().Warnf("With: %+v += %+v", openTelemetryGaugeCollector, labelValues)
+	openTelemetryGaugeCollector.mu.Lock()
+	defer openTelemetryGaugeCollector.mu.Unlock()
+
+	labels := g.labelNamesValues.With(labelValues...)
+	openTelemetryGaugeCollector.values[g.name+labels.ToString()] = 0
+
 	return &otelGauge{
-		labelNamesValues: g.labelNamesValues.With(labelValues...),
+		labelNamesValues: labels,
 		ip:               g.ip,
+		name:             g.name,
 	}
 }
 
-func (g *otelGauge) Add(delta float64) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.value += delta
+func (g *otelGauge) ToString() string {
+	return g.name + g.labelNamesValues.ToString()
+}
 
-	g.ip.Observe(context.Background(), g.value, g.labelNamesValues.ToLabels()...)
+func (g *otelGauge) Add(delta float64) {
+	openTelemetryGaugeCollector.mu.Lock()
+	defer openTelemetryGaugeCollector.mu.Unlock()
+
+	value, exists := openTelemetryGaugeCollector.values[g.ToString()]
+	if !exists {
+		// Should not happen
+		return
+	}
+
+	value += delta
+	log.WithoutContext().Warnf("Add: %q:%+v %f += %f", g.ToString(), openTelemetryGaugeCollector, value, delta)
+
+	openTelemetryGaugeCollector.values[g.ToString()] = value
+	g.ip.Observe(context.Background(), value, g.labelNamesValues.ToLabels()...)
 }
 
 func (g *otelGauge) Set(value float64) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.value = value
-
 	g.ip.Observe(context.Background(), value, g.labelNamesValues.ToLabels()...)
+
+	openTelemetryGaugeCollector.mu.Lock()
+	defer openTelemetryGaugeCollector.mu.Unlock()
+
+	openTelemetryGaugeCollector.values[g.ToString()] = value
 }
 
 func newOTLPHistogramFrom(meter metric.Meter, name, desc string, u unit.Unit) *otelHistogram {
@@ -341,7 +381,6 @@ func newOTLPHistogramFrom(meter metric.Meter, name, desc string, u unit.Unit) *o
 	)
 
 	return &otelHistogram{
-		// labelNamesValues: labelNames,
 		ip: c,
 	}
 }
@@ -373,6 +412,15 @@ func (lvs otelLabelNamesValues) With(labelValues ...string) otelLabelNamesValues
 		labelValues = append(labelValues, "unknown")
 	}
 	return append(lvs, labelValues...)
+}
+
+// ToString convert the otelLabelNamesValues to String.
+func (lvs otelLabelNamesValues) ToString() string {
+	var res string
+	for _, lv := range lvs {
+		res += lv
+	}
+	return res
 }
 
 // ToLabels is a convenience method to convert a otelLabelNamesValues
