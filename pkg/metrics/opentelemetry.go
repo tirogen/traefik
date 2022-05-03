@@ -298,24 +298,97 @@ func (c *otelCounter) Add(delta float64) {
 
 type gaugeCollector struct {
 	mu     sync.Mutex
-	values map[string]float64
+	values map[string][]gaugeValue
 }
 
 func newOpenTelemetryGaugeCollector() *gaugeCollector {
 	return &gaugeCollector{
-		values: make(map[string]float64),
+		values: make(map[string][]gaugeValue),
 	}
 }
 
+func (c *gaugeCollector) add(delta float64, name string, attributes otelLabelNamesValues) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	values, exist := c.values[name]
+	if !exist {
+		c.values[name] = []gaugeValue{{
+			attributes: attributes,
+			value:      delta,
+		}}
+		return
+	}
+
+	for i, v := range values {
+		if v.isSame(attributes) {
+			values[i].value += delta
+
+			return
+		}
+	}
+}
+
+func (c *gaugeCollector) set(value float64, name string, attributes otelLabelNamesValues) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	values, exist := c.values[name]
+	if !exist {
+		c.values[name] = []gaugeValue{{
+			attributes: attributes,
+			value:      value,
+		}}
+		return
+	}
+
+	for i, v := range values {
+		if v.isSame(attributes) {
+			values[i].value = value
+
+			return
+		}
+	}
+}
+
+type gaugeValue struct {
+	attributes otelLabelNamesValues
+	value      float64
+}
+
+func (g gaugeValue) isSame(attrs otelLabelNamesValues) bool {
+	for i, attr := range g.attributes {
+		if attr != attrs[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func newOTLPGaugeFrom(meter metric.Meter, name, desc string, u unit.Unit) *otelGauge {
-	openTelemetryGaugeCollector.mu.Lock()
-	defer openTelemetryGaugeCollector.mu.Unlock()
-	openTelemetryGaugeCollector.values[name] = 0
+	openTelemetryGaugeCollector.values[name] = make([]gaugeValue, 0)
 
 	c, _ := meter.AsyncFloat64().Gauge(name,
 		instrument.WithDescription(desc),
 		instrument.WithUnit(u),
 	)
+
+	err := meter.RegisterCallback([]instrument.Asynchronous{c}, func(ctx context.Context) {
+		openTelemetryGaugeCollector.mu.Lock()
+		defer openTelemetryGaugeCollector.mu.Unlock()
+
+		values, exist := openTelemetryGaugeCollector.values[name]
+		if !exist {
+			return
+		}
+
+		for _, value := range values {
+			c.Observe(ctx, value.value, value.attributes.ToLabels()...)
+		}
+	})
+	if err != nil {
+		log.WithoutContext().Error(err)
+	}
 
 	return &otelGauge{
 		ip:   c,
@@ -330,48 +403,19 @@ type otelGauge struct {
 }
 
 func (g *otelGauge) With(labelValues ...string) metrics.Gauge {
-	log.WithoutContext().Warnf("With: %+v += %+v", openTelemetryGaugeCollector, labelValues)
-	openTelemetryGaugeCollector.mu.Lock()
-	defer openTelemetryGaugeCollector.mu.Unlock()
-
-	labels := g.labelNamesValues.With(labelValues...)
-	openTelemetryGaugeCollector.values[g.name+labels.ToString()] = 0
-
 	return &otelGauge{
-		labelNamesValues: labels,
+		labelNamesValues: g.labelNamesValues.With(labelValues...),
 		ip:               g.ip,
 		name:             g.name,
 	}
 }
 
-func (g *otelGauge) ToString() string {
-	return g.name + g.labelNamesValues.ToString()
-}
-
 func (g *otelGauge) Add(delta float64) {
-	openTelemetryGaugeCollector.mu.Lock()
-	defer openTelemetryGaugeCollector.mu.Unlock()
-
-	value, exists := openTelemetryGaugeCollector.values[g.ToString()]
-	if !exists {
-		// Should not happen
-		return
-	}
-
-	value += delta
-	log.WithoutContext().Warnf("Add: %q:%+v %f += %f", g.ToString(), openTelemetryGaugeCollector, value, delta)
-
-	openTelemetryGaugeCollector.values[g.ToString()] = value
-	g.ip.Observe(context.Background(), value, g.labelNamesValues.ToLabels()...)
+	openTelemetryGaugeCollector.add(delta, g.name, g.labelNamesValues)
 }
 
 func (g *otelGauge) Set(value float64) {
-	g.ip.Observe(context.Background(), value, g.labelNamesValues.ToLabels()...)
-
-	openTelemetryGaugeCollector.mu.Lock()
-	defer openTelemetryGaugeCollector.mu.Unlock()
-
-	openTelemetryGaugeCollector.values[g.ToString()] = value
+	openTelemetryGaugeCollector.set(value, g.name, g.labelNamesValues)
 }
 
 func newOTLPHistogramFrom(meter metric.Meter, name, desc string, u unit.Unit) *otelHistogram {

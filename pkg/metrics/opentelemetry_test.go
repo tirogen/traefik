@@ -156,6 +156,148 @@ func TestOpenTelemetry_labels(t *testing.T) {
 	}
 }
 
+func TestOpenTelemetry_ValueIsSame(t *testing.T) {
+	tests := []struct {
+		desc     string
+		receiver gaugeValue
+		attrs    otelLabelNamesValues
+		expect   bool
+	}{
+		{
+			desc: "equal",
+			receiver: gaugeValue{
+				attributes: otelLabelNamesValues{"foo"},
+			},
+			attrs:  otelLabelNamesValues{"foo"},
+			expect: true,
+		},
+		{
+			desc: "but different",
+			receiver: gaugeValue{
+				attributes: otelLabelNamesValues{"foo"},
+			},
+
+			attrs: otelLabelNamesValues{"bar"},
+
+			expect: false,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, test.expect, test.receiver.isSame(test.attrs))
+		})
+	}
+}
+
+func TestOpenTelemetry_GaugeCollectorAdd(t *testing.T) {
+	tests := []struct {
+		desc       string
+		gc         *gaugeCollector
+		delta      float64
+		name       string
+		attributes otelLabelNamesValues
+		expect     map[string][]gaugeValue
+	}{
+		{
+			desc:  "empty collector",
+			gc:    newOpenTelemetryGaugeCollector(),
+			delta: 1,
+			name:  "foo",
+			expect: map[string][]gaugeValue{
+				"foo": {{
+					value: 1,
+				}},
+			},
+		},
+		{
+			desc: "initialised collector",
+			gc: &gaugeCollector{
+				values: map[string][]gaugeValue{
+					"foo": {{
+						value: 1,
+					}},
+				},
+			},
+			delta: 1,
+			name:  "foo",
+			expect: map[string][]gaugeValue{
+				"foo": {{
+					value: 2,
+				}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			test.gc.add(test.delta, test.name, test.attributes)
+
+			assert.Equal(t, test.expect, test.gc.values)
+		})
+	}
+}
+
+func TestOpenTelemetry_GaugeCollectorSet(t *testing.T) {
+	tests := []struct {
+		desc       string
+		gc         *gaugeCollector
+		value      float64
+		name       string
+		attributes otelLabelNamesValues
+		expect     map[string][]gaugeValue
+	}{
+		{
+			desc:  "empty collector",
+			gc:    newOpenTelemetryGaugeCollector(),
+			value: 1,
+			name:  "foo",
+			expect: map[string][]gaugeValue{
+				"foo": {{
+					value: 1,
+				}},
+			},
+		},
+		{
+			desc: "initialised collector",
+			gc: &gaugeCollector{
+				values: map[string][]gaugeValue{
+					"foo": {{
+						value: 1,
+					}},
+				},
+			},
+			value: 1,
+			name:  "foo",
+			expect: map[string][]gaugeValue{
+				"foo": {{
+					value: 1,
+				}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			test.gc.set(test.value, test.name, test.attributes)
+
+			assert.Equal(t, test.expect, test.gc.values)
+		})
+	}
+}
+
 func TestOpenTelemetry(t *testing.T) {
 	t.Parallel()
 
