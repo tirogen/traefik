@@ -201,56 +201,52 @@ func TestOpenTelemetry_GaugeCollectorAdd(t *testing.T) {
 		delta      float64
 		name       string
 		attributes otelLabelNamesValues
-		expect     map[string][]gaugeValue
+		expect     map[string]map[string]gaugeValue
 	}{
 		{
 			desc:  "empty collector",
 			gc:    newOpenTelemetryGaugeCollector(),
 			delta: 1,
 			name:  "foo",
-			expect: map[string][]gaugeValue{
-				"foo": {{
-					value: 1,
-				}},
+			expect: map[string]map[string]gaugeValue{
+				"foo": {"": {value: 1}},
 			},
 		},
 		{
 			desc: "initialised collector",
 			gc: &gaugeCollector{
-				values: map[string][]gaugeValue{
-					"foo": {{
-						value: 1,
-					}},
+				values: map[string]map[string]gaugeValue{
+					"foo": {"": {value: 1}},
 				},
 			},
 			delta: 1,
 			name:  "foo",
-			expect: map[string][]gaugeValue{
-				"foo": {{
-					value: 2,
-				}},
+			expect: map[string]map[string]gaugeValue{
+				"foo": {"": {value: 2}},
 			},
 		},
 		{
-			desc: "initialised collector, values with label",
+			desc: "initialised collector, values with label (only the last one counts)",
 			gc: &gaugeCollector{
-				values: map[string][]gaugeValue{
-					"foo": {{
-						attributes: otelLabelNamesValues{"bar"},
-						value:      1,
-					}},
+				values: map[string]map[string]gaugeValue{
+					"foo": {
+						"bar": {
+							attributes: otelLabelNamesValues{"bar"},
+							value:      1,
+						},
+					},
 				},
 			},
 			delta: 1,
 			name:  "foo",
-			expect: map[string][]gaugeValue{
+			expect: map[string]map[string]gaugeValue{
 				"foo": {
-					{
+					"": {
+						value: 1,
+					},
+					"bar": {
 						attributes: otelLabelNamesValues{"bar"},
 						value:      1,
-					},
-					{
-						value: 1,
 					},
 				},
 			},
@@ -258,21 +254,21 @@ func TestOpenTelemetry_GaugeCollectorAdd(t *testing.T) {
 		{
 			desc: "initialised collector, values with label on set",
 			gc: &gaugeCollector{
-				values: map[string][]gaugeValue{
-					"foo": {{value: 1}},
+				values: map[string]map[string]gaugeValue{
+					"foo": {"bar": {value: 1}},
 				},
 			},
 			delta:      1,
 			name:       "foo",
-			attributes: otelLabelNamesValues{"bar"},
-			expect: map[string][]gaugeValue{
+			attributes: otelLabelNamesValues{"baz"},
+			expect: map[string]map[string]gaugeValue{
 				"foo": {
-					{
+					"bar": {
 						value: 1,
 					},
-					{
+					"baz": {
 						value:      1,
-						attributes: otelLabelNamesValues{"bar"},
+						attributes: otelLabelNamesValues{"baz"},
 					},
 				},
 			},
@@ -299,56 +295,52 @@ func TestOpenTelemetry_GaugeCollectorSet(t *testing.T) {
 		value      float64
 		name       string
 		attributes otelLabelNamesValues
-		expect     map[string][]gaugeValue
+		expect     map[string]map[string]gaugeValue
 	}{
 		{
 			desc:  "empty collector",
 			gc:    newOpenTelemetryGaugeCollector(),
 			value: 1,
 			name:  "foo",
-			expect: map[string][]gaugeValue{
-				"foo": {{
-					value: 1,
-				}},
+			expect: map[string]map[string]gaugeValue{
+				"foo": {"": {value: 1}},
 			},
 		},
 		{
 			desc: "initialised collector",
 			gc: &gaugeCollector{
-				values: map[string][]gaugeValue{
-					"foo": {{
-						value: 1,
-					}},
+				values: map[string]map[string]gaugeValue{
+					"foo": {"": {value: 1}},
 				},
 			},
 			value: 1,
 			name:  "foo",
-			expect: map[string][]gaugeValue{
-				"foo": {{
-					value: 1,
-				}},
+			expect: map[string]map[string]gaugeValue{
+				"foo": {"": {value: 1}},
 			},
 		},
 		{
 			desc: "initialised collector, values with label",
 			gc: &gaugeCollector{
-				values: map[string][]gaugeValue{
-					"foo": {{
-						attributes: otelLabelNamesValues{"bar"},
-						value:      1,
-					}},
+				values: map[string]map[string]gaugeValue{
+					"foo": {
+						"bar": {
+							attributes: otelLabelNamesValues{"bar"},
+							value:      1,
+						},
+					},
 				},
 			},
 			value: 1,
 			name:  "foo",
-			expect: map[string][]gaugeValue{
+			expect: map[string]map[string]gaugeValue{
 				"foo": {
-					{
+					"": {
+						value: 1,
+					},
+					"bar": {
 						attributes: otelLabelNamesValues{"bar"},
 						value:      1,
-					},
-					{
-						value: 1,
 					},
 				},
 			},
@@ -356,19 +348,19 @@ func TestOpenTelemetry_GaugeCollectorSet(t *testing.T) {
 		{
 			desc: "initialised collector, values with label on set",
 			gc: &gaugeCollector{
-				values: map[string][]gaugeValue{
-					"foo": {{value: 1}},
+				values: map[string]map[string]gaugeValue{
+					"foo": {"": {value: 1}},
 				},
 			},
 			value:      1,
 			name:       "foo",
 			attributes: otelLabelNamesValues{"bar"},
-			expect: map[string][]gaugeValue{
+			expect: map[string]map[string]gaugeValue{
 				"foo": {
-					{
+					"": {
 						value: 1,
 					},
-					{
+					"bar": {
 						value:      1,
 						attributes: otelLabelNamesValues{"bar"},
 					},
@@ -441,7 +433,7 @@ func TestOpenTelemetry(t *testing.T) {
 	cfg.PushInterval = ptypes.Duration(10 * time.Millisecond)
 
 	registry := RegisterOpenTelemetry(context.Background(), &cfg)
-	// defer StopOpenTelemetry()
+	defer StopOpenTelemetry()
 
 	require.NotNil(t, registry)
 

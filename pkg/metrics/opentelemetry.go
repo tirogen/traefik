@@ -114,8 +114,6 @@ func RegisterOpenTelemetry(ctx context.Context, config *types.OpenTelemetry) Reg
 			unit.Dimensionless)
 	}
 
-	log.FromContext(ctx).Debug("Opentracing metrics configured")
-
 	return reg
 }
 
@@ -282,7 +280,7 @@ func newOTLPCounterFrom(meter metric.Meter, name, desc string, u unit.Unit) *ote
 
 type otelCounter struct {
 	labelNamesValues otelLabelNamesValues
-	ip               syncfloat64.UpDownCounter
+	ip               syncfloat64.Counter
 }
 
 func (c *otelCounter) With(labelValues ...string) metrics.Counter {
@@ -298,12 +296,12 @@ func (c *otelCounter) Add(delta float64) {
 
 type gaugeCollector struct {
 	mu     sync.Mutex
-	values map[string][]gaugeValue
+	values map[string]map[string]gaugeValue
 }
 
 func newOpenTelemetryGaugeCollector() *gaugeCollector {
 	return &gaugeCollector{
-		values: make(map[string][]gaugeValue),
+		values: make(map[string]map[string]gaugeValue),
 	}
 }
 
@@ -311,54 +309,38 @@ func (c *gaugeCollector) add(delta float64, name string, attributes otelLabelNam
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	values, exist := c.values[name]
-	if !exist {
-		c.values[name] = []gaugeValue{{
+	if _, exist := c.values[name]; !exist {
+		c.values[name] = make(map[string]gaugeValue)
+	}
+
+	str := attributes.ToString()
+	v, exists := c.values[name][str]
+	if !exists {
+		c.values[name][str] = gaugeValue{
 			attributes: attributes,
 			value:      delta,
-		}}
+		}
 		return
 	}
 
-	for i, v := range values {
-		if v.isSame(attributes) {
-			values[i].value += delta
-
-			return
-		}
-	}
-
-	c.values[name] = append(c.values[name], gaugeValue{
+	c.values[name][str] = gaugeValue{
 		attributes: attributes,
-		value:      delta,
-	})
+		value:      v.value + delta,
+	}
 }
 
 func (c *gaugeCollector) set(value float64, name string, attributes otelLabelNamesValues) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	values, exist := c.values[name]
-	if !exist {
-		c.values[name] = []gaugeValue{{
-			attributes: attributes,
-			value:      value,
-		}}
-		return
+	if _, exist := c.values[name]; !exist {
+		c.values[name] = make(map[string]gaugeValue)
 	}
 
-	for i, v := range values {
-		if v.isSame(attributes) {
-			values[i].value = value
-
-			return
-		}
-	}
-
-	c.values[name] = append(c.values[name], gaugeValue{
+	c.values[name][attributes.ToString()] = gaugeValue{
 		attributes: attributes,
 		value:      value,
-	})
+	}
 }
 
 type gaugeValue struct {
@@ -380,7 +362,7 @@ func (g gaugeValue) isSame(attrs otelLabelNamesValues) bool {
 }
 
 func newOTLPGaugeFrom(meter metric.Meter, name, desc string, u unit.Unit) *otelGauge {
-	openTelemetryGaugeCollector.values[name] = make([]gaugeValue, 0)
+	openTelemetryGaugeCollector.values[name] = make(map[string]gaugeValue)
 
 	c, _ := meter.AsyncFloat64().Gauge(name,
 		instrument.WithDescription(desc),
