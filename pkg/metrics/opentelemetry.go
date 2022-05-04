@@ -327,6 +327,11 @@ func (c *gaugeCollector) add(delta float64, name string, attributes otelLabelNam
 			return
 		}
 	}
+
+	c.values[name] = append(c.values[name], gaugeValue{
+		attributes: attributes,
+		value:      delta,
+	})
 }
 
 func (c *gaugeCollector) set(value float64, name string, attributes otelLabelNamesValues) {
@@ -349,6 +354,11 @@ func (c *gaugeCollector) set(value float64, name string, attributes otelLabelNam
 			return
 		}
 	}
+
+	c.values[name] = append(c.values[name], gaugeValue{
+		attributes: attributes,
+		value:      value,
+	})
 }
 
 type gaugeValue struct {
@@ -357,6 +367,10 @@ type gaugeValue struct {
 }
 
 func (g gaugeValue) isSame(attrs otelLabelNamesValues) bool {
+	if len(g.attributes) != len(attrs) {
+		return false
+	}
+
 	for i, attr := range g.attributes {
 		if attr != attrs[i] {
 			return false

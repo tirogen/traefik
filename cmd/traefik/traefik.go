@@ -486,9 +486,8 @@ func registerMetricClients(metricsConfig *types.Metrics) []metrics.Registry {
 		openTelemetryRegister := metrics.RegisterOpenTelemetry(ctx, metricsConfig.OpenTelemetry)
 		if openTelemetryRegister != nil {
 			registries = append(registries, openTelemetryRegister)
-			// FIXME(tm): update comment
-			// log.FromContext(ctx).Debugf("Configured OpenTelemetry metrics: pushing to %s (%s org/%s bucket) once every %s",
-			// 	metricsConfig.InfluxDB2.Address, metricsConfig.InfluxDB2.Org, metricsConfig.InfluxDB2.Bucket, metricsConfig.InfluxDB2.PushInterval)
+			log.FromContext(ctx).Debugf("Configured OpenTelemetry metrics: pushing to %s once every %s",
+				metricsConfig.OpenTelemetry.Address, metricsConfig.OpenTelemetry.PushInterval)
 		}
 	}
 

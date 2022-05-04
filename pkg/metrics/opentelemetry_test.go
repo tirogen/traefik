@@ -231,6 +231,52 @@ func TestOpenTelemetry_GaugeCollectorAdd(t *testing.T) {
 				}},
 			},
 		},
+		{
+			desc: "initialised collector, values with label",
+			gc: &gaugeCollector{
+				values: map[string][]gaugeValue{
+					"foo": {{
+						attributes: otelLabelNamesValues{"bar"},
+						value:      1,
+					}},
+				},
+			},
+			delta: 1,
+			name:  "foo",
+			expect: map[string][]gaugeValue{
+				"foo": {
+					{
+						attributes: otelLabelNamesValues{"bar"},
+						value:      1,
+					},
+					{
+						value: 1,
+					},
+				},
+			},
+		},
+		{
+			desc: "initialised collector, values with label on set",
+			gc: &gaugeCollector{
+				values: map[string][]gaugeValue{
+					"foo": {{value: 1}},
+				},
+			},
+			delta:      1,
+			name:       "foo",
+			attributes: otelLabelNamesValues{"bar"},
+			expect: map[string][]gaugeValue{
+				"foo": {
+					{
+						value: 1,
+					},
+					{
+						value:      1,
+						attributes: otelLabelNamesValues{"bar"},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -283,6 +329,52 @@ func TestOpenTelemetry_GaugeCollectorSet(t *testing.T) {
 				}},
 			},
 		},
+		{
+			desc: "initialised collector, values with label",
+			gc: &gaugeCollector{
+				values: map[string][]gaugeValue{
+					"foo": {{
+						attributes: otelLabelNamesValues{"bar"},
+						value:      1,
+					}},
+				},
+			},
+			value: 1,
+			name:  "foo",
+			expect: map[string][]gaugeValue{
+				"foo": {
+					{
+						attributes: otelLabelNamesValues{"bar"},
+						value:      1,
+					},
+					{
+						value: 1,
+					},
+				},
+			},
+		},
+		{
+			desc: "initialised collector, values with label on set",
+			gc: &gaugeCollector{
+				values: map[string][]gaugeValue{
+					"foo": {{value: 1}},
+				},
+			},
+			value:      1,
+			name:       "foo",
+			attributes: otelLabelNamesValues{"bar"},
+			expect: map[string][]gaugeValue{
+				"foo": {
+					{
+						value: 1,
+					},
+					{
+						value:      1,
+						attributes: otelLabelNamesValues{"bar"},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -296,6 +388,26 @@ func TestOpenTelemetry_GaugeCollectorSet(t *testing.T) {
 			assert.Equal(t, test.expect, test.gc.values)
 		})
 	}
+}
+
+func TestOpenTelemetry_RegisterOpenTelemetry(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := fmt.Fprintln(w, "ok")
+		require.NoError(t, err)
+	}))
+
+	var cfg types.OpenTelemetry
+	(&cfg).SetDefaults()
+	cfg.AddRoutersLabels = true
+	cfg.Insecure = true
+	cfg.Address = ts.Listener.Addr().String()
+
+	registry := RegisterOpenTelemetry(context.Background(), &cfg)
+	require.NotNil(t, registry)
+
+	registry.ConfigReloadsCounter().Add(1)
+
+	StopOpenTelemetry()
 }
 
 func TestOpenTelemetry(t *testing.T) {
@@ -329,7 +441,7 @@ func TestOpenTelemetry(t *testing.T) {
 	cfg.PushInterval = ptypes.Duration(10 * time.Millisecond)
 
 	registry := RegisterOpenTelemetry(context.Background(), &cfg)
-	defer StopOpenTelemetry()
+	// defer StopOpenTelemetry()
 
 	require.NotNil(t, registry)
 
@@ -416,7 +528,6 @@ func TestOpenTelemetry(t *testing.T) {
 	registry.ServiceRetriesCounter().With("service", "test").Add(1)
 	registry.ServiceRetriesCounter().With("service", "test").Add(1)
 	registry.ServiceRetriesCounter().With("service", "foobar").Add(1)
-
 	msgServiceRetries := <-c
 
 	assertMessage(t, *msgServiceRetries, expectedServiceRetries)
@@ -430,8 +541,8 @@ func TestOpenTelemetry(t *testing.T) {
 	registry.ServiceOpenConnsGauge().With("service", "test").Add(1)
 	registry.ServiceOpenConnsGauge().With("service", "test").Add(1)
 	registry.ServiceOpenConnsGauge().With("service", "foobar").Add(1)
-
 	msgServiceOpenConns := <-c
 
 	assertMessage(t, *msgServiceOpenConns, expectedServiceOpenConns)
+	t.Log("test completed")
 }
