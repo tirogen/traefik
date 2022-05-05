@@ -119,7 +119,7 @@ func RegisterOpenTelemetry(ctx context.Context, config *types.OpenTelemetry) Reg
 
 // StopOpenTelemetry stops and resets Open-Telemetry client.
 func StopOpenTelemetry() {
-	if openTelemetryController == nil {
+	if openTelemetryController == nil || !openTelemetryController.IsRunning() {
 		return
 	}
 

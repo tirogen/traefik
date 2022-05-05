@@ -176,9 +176,7 @@ func TestOpenTelemetry_ValueIsSame(t *testing.T) {
 			receiver: gaugeValue{
 				attributes: otelLabelNamesValues{"foo"},
 			},
-
-			attrs: otelLabelNamesValues{"bar"},
-
+			attrs:  otelLabelNamesValues{"bar"},
 			expect: false,
 		},
 	}
@@ -382,30 +380,11 @@ func TestOpenTelemetry_GaugeCollectorSet(t *testing.T) {
 	}
 }
 
-func TestOpenTelemetry_RegisterOpenTelemetry(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, err := fmt.Fprintln(w, "ok")
-		require.NoError(t, err)
-	}))
-
-	var cfg types.OpenTelemetry
-	(&cfg).SetDefaults()
-	cfg.AddRoutersLabels = true
-	cfg.Insecure = true
-	cfg.Address = ts.Listener.Addr().String()
-
-	registry := RegisterOpenTelemetry(context.Background(), &cfg)
-	require.NotNil(t, registry)
-
-	registry.ConfigReloadsCounter().Add(1)
-
-	StopOpenTelemetry()
-}
-
 func TestOpenTelemetry(t *testing.T) {
 	t.Parallel()
 
-	c := make(chan *string)
+	c := make(chan *string, 8)
+	defer close(c)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
@@ -536,5 +515,4 @@ func TestOpenTelemetry(t *testing.T) {
 	msgServiceOpenConns := <-c
 
 	assertMessage(t, *msgServiceOpenConns, expectedServiceOpenConns)
-	t.Log("test completed")
 }
