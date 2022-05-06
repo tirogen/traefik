@@ -151,7 +151,7 @@ func TestOpenTelemetry_GaugeCollectorAdd(t *testing.T) {
 			},
 		},
 		{
-			desc: "initialised collector",
+			desc: "initialized collector",
 			gc: &gaugeCollector{
 				values: map[string]map[string]gaugeValue{
 					"foo": {"": {value: 1}},
@@ -164,7 +164,7 @@ func TestOpenTelemetry_GaugeCollectorAdd(t *testing.T) {
 			},
 		},
 		{
-			desc: "initialised collector, values with label (only the last one counts)",
+			desc: "initialized collector, values with label (only the last one counts)",
 			gc: &gaugeCollector{
 				values: map[string]map[string]gaugeValue{
 					"foo": {
@@ -190,7 +190,7 @@ func TestOpenTelemetry_GaugeCollectorAdd(t *testing.T) {
 			},
 		},
 		{
-			desc: "initialised collector, values with label on set",
+			desc: "initialized collector, values with label on set",
 			gc: &gaugeCollector{
 				values: map[string]map[string]gaugeValue{
 					"foo": {"bar": {value: 1}},
@@ -245,7 +245,7 @@ func TestOpenTelemetry_GaugeCollectorSet(t *testing.T) {
 			},
 		},
 		{
-			desc: "initialised collector",
+			desc: "initialized collector",
 			gc: &gaugeCollector{
 				values: map[string]map[string]gaugeValue{
 					"foo": {"": {value: 1}},
@@ -258,7 +258,7 @@ func TestOpenTelemetry_GaugeCollectorSet(t *testing.T) {
 			},
 		},
 		{
-			desc: "initialised collector, values with label",
+			desc: "initialized collector, values with label",
 			gc: &gaugeCollector{
 				values: map[string]map[string]gaugeValue{
 					"foo": {
@@ -284,7 +284,7 @@ func TestOpenTelemetry_GaugeCollectorSet(t *testing.T) {
 			},
 		},
 		{
-			desc: "initialised collector, values with label on set",
+			desc: "initialized collector, values with label on set",
 			gc: &gaugeCollector{
 				values: map[string]map[string]gaugeValue{
 					"foo": {"": {value: 1}},
@@ -347,8 +347,7 @@ func TestOpenTelemetry(t *testing.T) {
 	var cfg types.OpenTelemetry
 	(&cfg).SetDefaults()
 	cfg.AddRoutersLabels = true
-	cfg.Insecure = true
-	cfg.Address = "toto://" + ts.Listener.Addr().String()
+	cfg.Address = ts.URL
 	cfg.PushInterval = ptypes.Duration(10 * time.Millisecond)
 
 	registry := RegisterOpenTelemetry(context.Background(), &cfg)

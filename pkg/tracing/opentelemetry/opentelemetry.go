@@ -23,6 +23,7 @@ import (
 func (c *Config) Setup(componentName string) (opentracing.Tracer, io.Closer, error) {
 	// Tracer
 	bt := oteltracer.NewBridgeTracer()
+
 	// TODO add schema URL
 	bt.SetOpenTelemetryTracer(otel.Tracer(componentName,
 		trace.WithInstrumentationVersion(traefikversion.Version)))
@@ -72,8 +73,8 @@ func (c *Config) setupHTTPExporter() (io.Closer, error) {
 		opts = append(opts, otlptracehttp.WithRetry(otlptracehttp.RetryConfig{
 			Enabled:         true,
 			InitialInterval: c.Retry.InitialInterval,
-			MaxInterval:     c.Retry.MaxInterval,
 			MaxElapsedTime:  c.Retry.MaxElapsedTime,
+			MaxInterval:     c.Retry.MaxInterval,
 		}))
 	}
 
@@ -127,8 +128,8 @@ func (c *Config) setupGRPCExporter(grpc *ConfigGRPC) (io.Closer, error) {
 		opts = append(opts, otlptracegrpc.WithRetry(otlptracegrpc.RetryConfig{
 			Enabled:         true,
 			InitialInterval: c.Retry.InitialInterval,
-			MaxInterval:     c.Retry.MaxInterval,
 			MaxElapsedTime:  c.Retry.MaxElapsedTime,
+			MaxInterval:     c.Retry.MaxInterval,
 		}))
 	}
 
@@ -155,7 +156,7 @@ func (c *Config) setupGRPCExporter(grpc *ConfigGRPC) (io.Closer, error) {
 	return tpCloser{provider: tracerProvider}, nil
 }
 
-// tpCloser converts a TraceProvider into an io.Closer
+// tpCloser converts a TraceProvider into an io.Closer.
 type tpCloser struct {
 	provider *sdktrace.TracerProvider
 }

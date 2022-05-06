@@ -259,10 +259,10 @@ func newGRPCExporter(ctx context.Context, config *types.OpenTelemetry) (export.E
 
 	// TODO: handle DialOption
 	opts := []otlpmetricgrpc.Option{
-		otlpmetricgrpc.WithServiceConfig(config.GRPC.ServiceConfig),
+		otlpmetricgrpc.WithEndpoint(u.Host),
 		otlpmetricgrpc.WithHeaders(config.Headers),
 		otlpmetricgrpc.WithReconnectionPeriod(config.GRPC.ReconnectionPeriod),
-		otlpmetricgrpc.WithEndpoint(u.Host),
+		otlpmetricgrpc.WithServiceConfig(config.GRPC.ServiceConfig),
 		otlpmetricgrpc.WithTimeout(config.Timeout),
 	}
 
@@ -278,8 +278,8 @@ func newGRPCExporter(ctx context.Context, config *types.OpenTelemetry) (export.E
 		opts = append(opts, otlpmetricgrpc.WithRetry(otlpmetricgrpc.RetryConfig{
 			Enabled:         true,
 			InitialInterval: config.Retry.InitialInterval,
-			MaxInterval:     config.Retry.MaxInterval,
 			MaxElapsedTime:  config.Retry.MaxElapsedTime,
+			MaxInterval:     config.Retry.MaxInterval,
 		}))
 	}
 

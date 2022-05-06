@@ -160,9 +160,9 @@ func (o *OpenTelemetry) SetDefaults() {
 
 // OTELGRPC provides configuration settings for an open-telemetry metrics reporter.
 type OTELGRPC struct {
+	Insecure           bool          `description:"Connect to endpoint using HTTP." json:"insecure,omitempty" toml:"insecure,omitempty" yaml:"insecure,omitempty" export:"true"`
 	ReconnectionPeriod time.Duration `description:"The minimum amount of time between connection attempts to the target endpoint." json:"reconnectionPeriod,omitempty" toml:"reconnectionPeriod,omitempty" yaml:"reconnectionPeriod,omitempty" export:"true"`
 	ServiceConfig      string        `description:"Defines the default gRPC service config used." json:"serviceConfig,omitempty" toml:"serviceConfig,omitempty" yaml:"serviceConfig,omitempty" export:"true"`
-	Insecure           bool          `description:"Connect to endpoint using HTTP." json:"insecure,omitempty" toml:"insecure,omitempty" yaml:"insecure,omitempty" export:"true"`
 }
 
 // SetDefaults sets the default values.
@@ -171,15 +171,15 @@ func (o *OTELGRPC) SetDefaults() {
 
 type retry struct {
 	InitialInterval time.Duration `description:"The time to wait after the first failure before retrying." json:"initialInterval,omitempty" toml:"initialInterval,omitempty" yaml:"initialInterval,omitempty" export:"true"`
-	MaxInterval     time.Duration `description:"The upper bound on backoff interval." json:"maxInterval,omitempty" toml:"maxInterval,omitempty" yaml:"maxInterval,omitempty" export:"true"`
 	MaxElapsedTime  time.Duration `description:"The maximum amount of time (including retries) spent trying to send a request/batch." json:"maxElapsedTime,omitempty" toml:"maxElapsedTime,omitempty" yaml:"maxElapsedTime,omitempty" export:"true"`
+	MaxInterval     time.Duration `description:"The upper bound on backoff interval." json:"maxInterval,omitempty" toml:"maxInterval,omitempty" yaml:"maxInterval,omitempty" export:"true"`
 }
 
 // SetDefaults sets the default values.
 func (r *retry) SetDefaults() {
 	r.InitialInterval = 5 * time.Second
-	r.MaxInterval = 30 * time.Second
 	r.MaxElapsedTime = time.Minute
+	r.MaxInterval = 30 * time.Second
 }
 
 // Statistics provides options for monitoring request and response stats.

@@ -21,7 +21,10 @@ tracing:
 --tracing.openTelemetry=true
 ```
 
-!!! info "The OpenTelemetry trace reporter will export traces to the collector by using [HTTP](#http-configuration) by default"
+!!! info ""
+
+    The OpenTelemetry trace reporter will export traces to the collector by using HTTP by default,
+    see the [GRPC Section](#grpc-configuration) to use GRPC.
 
 #### `compress`
 
@@ -47,24 +50,24 @@ tracing:
 
 #### `endpoint`
 
-_Required, Default="localhost:4318"_
+_Required, Default="https://localhost:4318/v1/traces"_
 
 This instructs the reporter to send spans to the OpenTelemetry Collector at this address (host:port).
 
 ```yaml tab="File (YAML)"
 tracing:
   openTelemetry:
-    endpoint: localhost:4318
+    endpoint: https://localhost:4318/v1/traces
 ```
 
 ```toml tab="File (TOML)"
 [tracing]
   [tracing.openTelemetry]
-    endpoint = "localhost:4318"
+    endpoint = "https://localhost:4318/v1/traces"
 ```
 
 ```bash tab="CLI"
---tracing.openTelemetry.endpoint=localhost:4318
+--tracing.openTelemetry.endpoint=https://localhost:4318/v1/traces
 ```
 
 #### `headers`
@@ -90,28 +93,6 @@ tracing:
 
 ```bash tab="CLI"
 --tracing.openTelemetry.headers.foo=bar --tracing.openTelemetry.headers.baz=buz
-```
-
-#### `insecure`
-
-_Optional, Default=false_
-
-Allows reporter to send span to the OpenTelemetry Collector without using a secured protocol.
-
-```yaml tab="File (YAML)"
-tracing:
-  openTelemetry:
-    insecure: true
-```
-
-```toml tab="File (TOML)"
-[tracing]
-  [tracing.openTelemetry]
-    insecure = true
-```
-
-```bash tab="CLI"
---tracing.openTelemetry.insecure=true
 ```
 
 #### `retry`
@@ -226,50 +207,147 @@ tracing:
 --tracing.openTelemetry.timeout=3s
 ```
 
-#### HTTP configuration
+#### `tls`
 
-This instructs the reporter to send spans to the OpenTelemetry Collector using HTTP:
+_Optional_
 
-```yaml tab="File (YAML)"
-tracing:
-  openTelemetry:
-    http: {}
-```
+Defines the TLS configuration used by the reporter to send spans to the OpenTelemetry Collector.
 
-```toml tab="File (TOML)"
-[tracing]
-  [tracing.openTelemetry.http]
-```
+##### `ca`
 
-```bash tab="CLI"
---tracing.openTelemetry.http=true
-```
+_Optional_
 
-##### `urlPath`
-
-_Optional, Default="/v1/traces"_
-
-Override the default URL path used for sending traces.
+`ca` is the path to the certificate authority used for the secure connection to the OpenTelemetry Collector,
+it defaults to the system bundle.
 
 ```yaml tab="File (YAML)"
 tracing:
   openTelemetry:
-    http:
-      urlPath: /v1/traces
+    tls:
+      ca: path/to/ca.crt
 ```
 
 ```toml tab="File (TOML)"
-[tracing]
-  [tracing.openTelemetry]
-    [tracing.openTelemetry.http]
-      urlPath = "/v1/traces"
+[tracing.openTelemetry.tls]
+  ca = "path/to/ca.crt"
 ```
 
 ```bash tab="CLI"
---tracing.openTelemetry.http.urlPath="/v1/traces"
+--tracing.openTelemetry.tls.ca=path/to/ca.crt
+```
+
+##### `caOptional`
+
+_Optional_
+
+The value of `caOptional` defines which policy should be used for the secure connection with TLS Client Authentication the OpenTelemetry Collector.
+
+!!! warning ""
+
+    If `ca` is undefined, this option will be ignored,
+    and no client certificate will be requested during the handshake.
+    Any provided certificate will thus never be verified.
+
+When this option is set to `true`, a client certificate is requested during the handshake but is not required.
+If a certificate is sent, it is required to be valid.
+
+When this option is set to `false`, a client certificate is requested during the handshake,
+and at least one valid certificate should be sent by the client.
+
+```yaml tab="File (YAML)"
+tracing:
+  openTelemetry:
+    tls:
+      caOptional: true
+```
+
+```toml tab="File (TOML)"
+[tracing.openTelemetry.tls]
+  caOptional = true
+```
+
+```bash tab="CLI"
+--tracing.openTelemetry.tls.caOptional=true
+```
+
+##### `cert`
+
+_Optional_
+
+`cert` is the path to the public certificate used for the secure connection to the OpenTelemetry Collector.
+When using this option, setting the `key` option is required.
+
+```yaml tab="File (YAML)"
+tracing:
+  openTelemetry:
+    tls:
+      cert: path/to/foo.cert
+      key: path/to/foo.key
+```
+
+```toml tab="File (TOML)"
+[tracing.openTelemetry.tls]
+  cert = "path/to/foo.cert"
+  key = "path/to/foo.key"
+```
+
+```bash tab="CLI"
+--tracing.openTelemetry.tls.cert=path/to/foo.cert
+--tracing.openTelemetry.tls.key=path/to/foo.key
+```
+
+##### `key`
+
+_Optional_
+
+`key` is the path to the private key used for the secure connection to the OpenTelemetry Collector.
+When using this option, setting the `cert` option is required.
+
+```yaml tab="File (YAML)"
+tracing:
+  openTelemetry:
+    tls:
+      cert: path/to/foo.cert
+      key: path/to/foo.key
+```
+
+```toml tab="File (TOML)"
+[tracing.openTelemetry.tls]
+  cert = "path/to/foo.cert"
+  key = "path/to/foo.key"
+```
+
+```bash tab="CLI"
+--tracing.openTelemetry.tls.cert=path/to/foo.cert
+--tracing.openTelemetry.tls.key=path/to/foo.key
+```
+
+##### `insecureSkipVerify`
+
+_Optional, Default=false_
+
+If `insecureSkipVerify` is `true`,
+the TLS connection to the OpenTelemetry Collector accepts any certificate presented by the server regardless of the hostnames it covers.
+
+```yaml tab="File (YAML)"
+tracing:
+  openTelemetry:
+    tls:
+      insecureSkipVerify: true
+```
+
+```toml tab="File (TOML)"
+[tracing.openTelemetry.tls]
+  insecureSkipVerify = true
+```
+
+```bash tab="CLI"
+--tracing.openTelemetry.tls.insecureSkipVerify=true
 ```
 
 #### GRPC configuration
+
+_Optional_
 
 This instructs the reporter to send spans to the OpenTelemetry Collector using GRPC:
 
@@ -286,6 +364,29 @@ tracing:
 
 ```bash tab="CLI"
 --tracing.openTelemetry.grpc=true
+```
+
+##### `insecure`
+
+_Optional, Default=false_
+
+Allows reporter to send span to the OpenTelemetry Collector without using a secured protocol.
+
+```yaml tab="File (YAML)"
+tracing:
+  openTelemetry:
+    grpc:
+      insecure: true
+```
+
+```toml tab="File (TOML)"
+[tracing]
+  [tracing.openTelemetry.grpc]
+    insecure = true
+```
+
+```bash tab="CLI"
+--tracing.openTelemetry.grpc.insecure=true
 ```
 
 ##### `reconnectionPeriod`
@@ -318,7 +419,7 @@ _Optional_
 
 Defines the JSON representation of the default gRPC service config used.
 
-For more information about service configurations, see: https://github.com/grpc/grpc/blob/master/doc/service_config.md
+For more information about service configurations, see: [https://github.com/grpc/grpc/blob/master/doc/service_config.md](https://github.com/grpc/grpc/blob/master/doc/service_config.md)
 
 ```yaml tab="File (YAML)"
 tracing:

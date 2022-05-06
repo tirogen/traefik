@@ -21,7 +21,10 @@ metrics:
 --metrics.openTelemetry=true
 ```
 
-!!! info "The OpenTelemetry trace reporter will export traces to the collector by using [HTTP](#http-configuration) by default"
+!!! info ""
+
+    The OpenTelemetry trace reporter will export traces to the collector by using HTTP by default,
+    see the [GRPC Section](#grpc-configuration) to use GRPC.
 
 #### `addEntryPointsLabels`
 
@@ -47,24 +50,24 @@ metrics:
 
 #### `address`
 
-_Required, Default="localhost:4318"_
+_Required, Default="https://localhost:4318/v1/metrics"_
 
 Address instructs exporter to send metrics to OpenTelemetry at this address.
 
 ```yaml tab="File (YAML)"
 metrics:
   openTelemetry:
-    address: localhost:8089
+    address: https://localhost:4318/v1/metrics
 ```
 
 ```toml tab="File (TOML)"
 [metrics]
   [metrics.openTelemetry]
-    address = "localhost:8089"
+    address = "https://localhost:4318/v1/metrics"
 ```
 
 ```bash tab="CLI"
---metrics.openTelemetry.address=localhost:8089
+--metrics.openTelemetry.address=https://localhost:4318/v1/metrics
 ```
 
 #### `addRoutersLabels`
@@ -184,28 +187,6 @@ metrics:
 --metrics.openTelemetry.headers.foo=bar --metrics.openTelemetry.headers.baz=buz
 ```
 
-#### `insecure`
-
-_Optional, Default=false_
-
-Allows reporter to send metrics to the OpenTelemetry Collector without using a secured protocol.
-
-```yaml tab="File (YAML)"
-metrics:
-  openTelemetry:
-    insecure: true
-```
-
-```toml tab="File (TOML)"
-[metrics]
-  [metrics.openTelemetry]
-    insecure = true
-```
-
-```bash tab="CLI"
---metrics.openTelemetry.insecure=true
-```
-
 #### `pushInterval`
 
 _Optional, Default=10s_
@@ -296,29 +277,6 @@ metrics:
 --metrics.openTelemetry.retry.initialInterval=10s
 ```
 
-##### `maxInterval`
-
-_Optional, Default=30s_
-
-The upper bound on backoff interval.
-
-```yaml tab="File (YAML)"
-metrics:
-  openTelemetry:
-    retry:
-      maxInterval: 10s
-```
-
-```toml tab="File (TOML)"
-[metrics]
-  [metrics.openTelemetry.retry]
-    maxInterval = "10s"
-```
-
-```bash tab="CLI"
---metrics.openTelemetry.retry.maxInterval=10s
-```
-
 ##### `maxElapsedTime`
 
 _Optional, Default=1m_
@@ -340,6 +298,29 @@ metrics:
 
 ```bash tab="CLI"
 --metrics.openTelemetry.retry.maxElapsedTime=10s
+```
+
+##### `maxInterval`
+
+_Optional, Default=30s_
+
+The upper bound on backoff interval.
+
+```yaml tab="File (YAML)"
+metrics:
+  openTelemetry:
+    retry:
+      maxInterval: 10s
+```
+
+```toml tab="File (TOML)"
+[metrics]
+  [metrics.openTelemetry.retry]
+    maxInterval = "10s"
+```
+
+```bash tab="CLI"
+--metrics.openTelemetry.retry.maxInterval=10s
 ```
 
 #### `timeout`
@@ -364,6 +345,145 @@ metrics:
 --metrics.openTelemetry.timeout=3s
 ```
 
+#### `tls`
+
+_Optional_
+
+Defines the TLS configuration used by the reporter to send metrics to the OpenTelemetry Collector.
+
+##### `ca`
+
+_Optional_
+
+`ca` is the path to the certificate authority used for the secure connection to the OpenTelemetry Collector,
+it defaults to the system bundle.
+
+```yaml tab="File (YAML)"
+metrics:
+  openTelemetry:
+    tls:
+      ca: path/to/ca.crt
+```
+
+```toml tab="File (TOML)"
+[metrics.openTelemetry.tls]
+  ca = "path/to/ca.crt"
+```
+
+```bash tab="CLI"
+--metrics.openTelemetry.tls.ca=path/to/ca.crt
+```
+
+##### `caOptional`
+
+_Optional_
+
+The value of `caOptional` defines which policy should be used for the secure connection with TLS Client Authentication the OpenTelemetry Collector.
+
+!!! warning ""
+
+    If `ca` is undefined, this option will be ignored,
+    and no client certificate will be requested during the handshake.
+    Any provided certificate will thus never be verified.
+
+When this option is set to `true`, a client certificate is requested during the handshake but is not required.
+If a certificate is sent, it is required to be valid.
+
+When this option is set to `false`, a client certificate is requested during the handshake,
+and at least one valid certificate should be sent by the client.
+
+```yaml tab="File (YAML)"
+metrics:
+  openTelemetry:
+    tls:
+      caOptional: true
+```
+
+```toml tab="File (TOML)"
+[metrics.openTelemetry.tls]
+  caOptional = true
+```
+
+```bash tab="CLI"
+--metrics.openTelemetry.tls.caOptional=true
+```
+
+##### `cert`
+
+_Optional_
+
+`cert` is the path to the public certificate used for the secure connection to the OpenTelemetry Collector.
+When using this option, setting the `key` option is required.
+
+```yaml tab="File (YAML)"
+metrics:
+  openTelemetry:
+    tls:
+      cert: path/to/foo.cert
+      key: path/to/foo.key
+```
+
+```toml tab="File (TOML)"
+[metrics.openTelemetry.tls]
+  cert = "path/to/foo.cert"
+  key = "path/to/foo.key"
+```
+
+```bash tab="CLI"
+--metrics.openTelemetry.tls.cert=path/to/foo.cert
+--metrics.openTelemetry.tls.key=path/to/foo.key
+```
+
+##### `key`
+
+_Optional_
+
+`key` is the path to the private key used for the secure connection to the OpenTelemetry Collector.
+When using this option, setting the `cert` option is required.
+
+```yaml tab="File (YAML)"
+metrics:
+  openTelemetry:
+    tls:
+      cert: path/to/foo.cert
+      key: path/to/foo.key
+```
+
+```toml tab="File (TOML)"
+[metrics.openTelemetry.tls]
+  cert = "path/to/foo.cert"
+  key = "path/to/foo.key"
+```
+
+```bash tab="CLI"
+--metrics.openTelemetry.tls.cert=path/to/foo.cert
+--metrics.openTelemetry.tls.key=path/to/foo.key
+```
+
+##### `insecureSkipVerify`
+
+_Optional, Default=false_
+
+If `insecureSkipVerify` is `true`,
+the TLS connection to the OpenTelemetry Collector accepts any certificate presented by the server regardless of the hostnames it covers.
+
+```yaml tab="File (YAML)"
+metrics:
+  openTelemetry:
+    tls:
+      insecureSkipVerify: true
+```
+
+```toml tab="File (TOML)"
+[metrics.openTelemetry.tls]
+  insecureSkipVerify = true
+```
+
+```bash tab="CLI"
+--metrics.openTelemetry.tls.insecureSkipVerify=true
+```
+
+
 #### `withMemory`
 
 _Optional, Default=false_
@@ -386,49 +506,6 @@ metrics:
 --metrics.openTelemetry.withMemory=true
 ```
 
-#### HTTP configuration
-
-This instructs the reporter to send metrics to the OpenTelemetry Collector using HTTP:
-
-```yaml tab="File (YAML)"
-metrics:
-  openTelemetry:
-    http: {}
-```
-
-```toml tab="File (TOML)"
-[metrics]
-  [metrics.openTelemetry.http]
-```
-
-```bash tab="CLI"
---metrics.openTelemetry.http=true
-```
-
-##### `urlPath`
-
-_Optional, Default="/v1/metrics"_
-
-Override the default URL path used for sending metrics.
-
-```yaml tab="File (YAML)"
-metrics:
-  openTelemetry:
-    http:
-      urlPath: /v1/metrics
-```
-
-```toml tab="File (TOML)"
-[metrics]
-  [metrics.openTelemetry]
-    [metrics.openTelemetry.http]
-      urlPath = "/v1/metrics"
-```
-
-```bash tab="CLI"
---metrics.openTelemetry.http.urlPath="/v1/metrics"
-```
-
 #### GRPC configuration
 
 This instructs the reporter to send metrics to the OpenTelemetry Collector using GRPC:
@@ -446,6 +523,29 @@ metrics:
 
 ```bash tab="CLI"
 --metrics.openTelemetry.grpc=true
+```
+
+##### `insecure`
+
+_Optional, Default=false_
+
+Allows reporter to send metrics to the OpenTelemetry Collector without using a secured protocol.
+
+```yaml tab="File (YAML)"
+metrics:
+  openTelemetry:
+    grpc:
+      insecure: true
+```
+
+```toml tab="File (TOML)"
+[metrics]
+  [metrics.openTelemetry.grpc]
+    insecure = true
+```
+
+```bash tab="CLI"
+--metrics.openTelemetry.grpc.insecure=true
 ```
 
 ##### `reconnectionPeriod`

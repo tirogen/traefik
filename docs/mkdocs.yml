@@ -150,9 +150,9 @@ nav:
           - 'Datadog': 'observability/metrics/datadog.md'
           - 'InfluxDB': 'observability/metrics/influxdb.md'
           - 'InfluxDB2': 'observability/metrics/influxdb2.md'
+          - 'OpenTelemetry': 'observability/metrics/opentelemetry.md'
           - 'Prometheus': 'observability/metrics/prometheus.md'
           - 'StatsD': 'observability/metrics/statsd.md'
-          - 'OpenTelemetry': 'observability/metrics/opentelemetry.md'
       - 'Tracing':
           - 'Overview': 'observability/tracing/overview.md'
           - 'Jaeger': 'observability/tracing/jaeger.md'
