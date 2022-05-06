@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"errors"
+	"net/url"
 	"sync"
 	"time"
 
@@ -19,13 +20,14 @@ import (
 	"go.opentelemetry.io/otel/metric/instrument/asyncfloat64"
 	"go.opentelemetry.io/otel/metric/instrument/syncfloat64"
 	"go.opentelemetry.io/otel/metric/unit"
-	histo "go.opentelemetry.io/otel/sdk/metric/aggregator/histogram"
+	histogramAggregator "go.opentelemetry.io/otel/sdk/metric/aggregator/histogram"
 	controller "go.opentelemetry.io/otel/sdk/metric/controller/basic"
 	"go.opentelemetry.io/otel/sdk/metric/export"
 	"go.opentelemetry.io/otel/sdk/metric/export/aggregation"
 	processor "go.opentelemetry.io/otel/sdk/metric/processor/basic"
 	"go.opentelemetry.io/otel/sdk/metric/selector/simple"
 	"go.opentelemetry.io/otel/sdk/resource"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/encoding/gzip"
 )
 
@@ -126,25 +128,18 @@ func StopOpenTelemetry() {
 	if err := openTelemetryController.Stop(context.Background()); err != nil {
 		log.WithoutContext().Error(err)
 	}
+
+	openTelemetryController = nil
 }
 
 // newOpenTelemetryController creates a new controller.Controller.
 func newOpenTelemetryController(ctx context.Context, config *types.OpenTelemetry) (*controller.Controller, error) {
-	if config.HTTP != nil && config.GRPC != nil {
-		return nil, errors.New("cannot define HTTP and GRPC controller concurrently")
-	}
-
 	if config.PushInterval <= 0 {
 		return nil, errors.New("PushInterval must be greater than zero")
 	}
 
-	if config.HTTP == nil && config.GRPC == nil {
-		config.HTTP = &types.OTELHTTP{}
-		config.HTTP.SetDefaults()
-	}
-
 	factory := processor.NewFactory(
-		simple.NewWithHistogramDistribution(histo.WithExplicitBoundaries(config.ExplicitBoundaries)),
+		simple.NewWithHistogramDistribution(histogramAggregator.WithExplicitBoundaries(config.ExplicitBoundaries)),
 		aggregation.CumulativeTemporalitySelector(),
 		processor.WithMemory(config.WithMemory),
 	)
@@ -153,10 +148,10 @@ func newOpenTelemetryController(ctx context.Context, config *types.OpenTelemetry
 		exporter export.Exporter
 		err      error
 	)
-	if config.HTTP != nil {
-		exporter, err = newHTTPExporter(ctx, config)
-	} else {
+	if config.GRPC != nil {
 		exporter, err = newGRPCExporter(ctx, config)
+	} else {
+		exporter, err = newHTTPExporter(ctx, config)
 	}
 	if err != nil {
 		return nil, err
@@ -209,21 +204,31 @@ func newOpenTelemetryController(ctx context.Context, config *types.OpenTelemetry
 }
 
 func newHTTPExporter(ctx context.Context, config *types.OpenTelemetry) (export.Exporter, error) {
-	// TODO Handle TLSClientConfig
+	u, err := url.Parse(config.Address)
+	if err != nil {
+		return nil, err
+	}
+
 	opts := []otlpmetrichttp.Option{
-		otlpmetrichttp.WithEndpoint(config.Address),
+		otlpmetrichttp.WithEndpoint(u.Host),
 		otlpmetrichttp.WithHeaders(config.Headers),
 		otlpmetrichttp.WithTimeout(config.Timeout),
-		otlpmetrichttp.WithURLPath(config.HTTP.URLPath),
 	}
 
 	if config.Compress {
 		opts = append(opts, otlpmetrichttp.WithCompression(otlpmetrichttp.GzipCompression))
 	}
 
-	if config.Insecure {
+	if u.Scheme == "http" {
 		opts = append(opts, otlpmetrichttp.WithInsecure())
 	}
+
+	// https://github.com/open-telemetry/opentelemetry-go/blob/exporters/otlp/otlpmetric/v0.30.0/exporters/otlp/otlpmetric/internal/otlpconfig/options.go#L39
+	path := "/v1/metrics"
+	if u.Path != "" {
+		path = u.Path
+	}
+	opts = append(opts, otlpmetrichttp.WithURLPath(path))
 
 	if config.Retry != nil {
 		opts = append(opts, otlpmetrichttp.WithRetry(otlpmetrichttp.RetryConfig{
@@ -234,16 +239,30 @@ func newHTTPExporter(ctx context.Context, config *types.OpenTelemetry) (export.E
 		}))
 	}
 
+	if config.TLS != nil {
+		tlsConfig, err := config.TLS.CreateTLSConfig(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		opts = append(opts, otlpmetrichttp.WithTLSClientConfig(tlsConfig))
+	}
+
 	return otlpmetrichttp.New(ctx, opts...)
 }
 
 func newGRPCExporter(ctx context.Context, config *types.OpenTelemetry) (export.Exporter, error) {
-	// TODO: handle DialOption, TLSCredentials
+	u, err := url.Parse(config.Address)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: handle DialOption
 	opts := []otlpmetricgrpc.Option{
 		otlpmetricgrpc.WithServiceConfig(config.GRPC.ServiceConfig),
 		otlpmetricgrpc.WithHeaders(config.Headers),
 		otlpmetricgrpc.WithReconnectionPeriod(config.GRPC.ReconnectionPeriod),
-		otlpmetricgrpc.WithEndpoint(config.Address),
+		otlpmetricgrpc.WithEndpoint(u.Host),
 		otlpmetricgrpc.WithTimeout(config.Timeout),
 	}
 
@@ -251,7 +270,7 @@ func newGRPCExporter(ctx context.Context, config *types.OpenTelemetry) (export.E
 		opts = append(opts, otlpmetricgrpc.WithCompressor(gzip.Name))
 	}
 
-	if config.Insecure {
+	if config.GRPC.Insecure {
 		opts = append(opts, otlpmetricgrpc.WithInsecure())
 	}
 
@@ -262,6 +281,15 @@ func newGRPCExporter(ctx context.Context, config *types.OpenTelemetry) (export.E
 			MaxInterval:     config.Retry.MaxInterval,
 			MaxElapsedTime:  config.Retry.MaxElapsedTime,
 		}))
+	}
+
+	if config.TLS != nil {
+		tlsConfig, err := config.TLS.CreateTLSConfig(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		opts = append(opts, otlpmetricgrpc.WithTLSCredentials(credentials.NewTLS(tlsConfig)))
 	}
 
 	return otlpmetricgrpc.New(ctx, opts...)

@@ -130,7 +130,6 @@ func (i *InfluxDB2) SetDefaults() {
 
 // OpenTelemetry contain specific configuration used by the OpenTelemetry Metrics exporter.
 type OpenTelemetry struct {
-	HTTP *OTELHTTP `description:"HTTP specific configuration for the OpenTelemetry collector." json:"http,omitempty" toml:"http,omitempty" yaml:"http,omitempty" export:"true" label:"allowEmpty" file:"allowEmpty"`
 	GRPC *OTELGRPC `description:"GRPC specific configuration for the OpenTelemetry collector." json:"grpc,omitempty" toml:"grpc,omitempty" yaml:"grpc,omitempty" export:"true" label:"allowEmpty" file:"allowEmpty"`
 
 	AddEntryPointsLabels bool              `description:"Enable metrics on entry points." json:"addEntryPointsLabels,omitempty" toml:"addEntryPointsLabels,omitempty" yaml:"addEntryPointsLabels,omitempty" export:"true"`
@@ -140,39 +139,30 @@ type OpenTelemetry struct {
 	Compress             bool              `description:"Enable compression on the sent data." json:"compress,omitempty" toml:"compress,omitempty" yaml:"compress,omitempty" export:"true"`
 	ExplicitBoundaries   []float64         `description:"Boundaries for latency metrics." json:"explicitBoundaries,omitempty" toml:"explicitBoundaries,omitempty" yaml:"explicitBoundaries,omitempty" export:"true"`
 	Headers              map[string]string `description:"Headers sent with payload." json:"headers,omitempty" toml:"headers,omitempty" yaml:"headers,omitempty" export:"true"`
-	Insecure             bool              `description:"Connect to endpoint using HTTP." json:"insecure,omitempty" toml:"insecure,omitempty" yaml:"insecure,omitempty" export:"true"`
 	PushInterval         types.Duration    `description:"The interval between calls to Collect a checkpoint." json:"pushInterval,omitempty" toml:"pushInterval,omitempty" yaml:"pushInterval,omitempty" export:"true"`
 	PushTimeout          types.Duration    `description:"Timeout of the Context passed to observer." json:"pushTimeout,omitempty" toml:"pushTimeout,omitempty" yaml:"pushTimeout,omitempty" export:"true"`
 	Retry                *retry            `description:"The retry policy for transient errors that may occurs when exporting traces." json:"retry,omitempty" toml:"retry,omitempty" yaml:"retry,omitempty" export:"true"`
 	Timeout              time.Duration     `description:"The max waiting time for the backend to process each spans batch." json:"timeout,omitempty" toml:"timeout,omitempty" yaml:"timeout,omitempty" export:"true"`
+	TLS                  *ClientTLS        `description:"Enable TLS support" json:"tls,omitempty" toml:"tls,omitempty" yaml:"tls,omitempty" export:"true" `
 	WithMemory           bool              `description:"Controls whether the processor remembers metric instruments and label sets that were previously reported." json:"withMemory,omitempty" toml:"withMemory,omitempty" yaml:"withMemory,omitempty" export:"true"`
 }
 
 // SetDefaults sets the default values.
 func (o *OpenTelemetry) SetDefaults() {
 	o.AddEntryPointsLabels = true
+	o.Address = "https://localhost:4318/v1/metrics"
 	o.AddServicesLabels = true
 	o.ExplicitBoundaries = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
 	o.PushInterval = types.Duration(10 * time.Second)
 	o.PushTimeout = types.Duration(10 * time.Second)
-	o.Address = "localhost:4318"
 	o.Timeout = 10 * time.Second
-}
-
-// OTELHTTP provides configuration settings for an open-telemetry metrics reporter.
-type OTELHTTP struct {
-	URLPath string `description:"Override the default URL path used for sending traces." json:"urlPath,omitempty" toml:"urlPath,omitempty" yaml:"urlPath,omitempty"`
-}
-
-// SetDefaults sets the default values.
-func (o *OTELHTTP) SetDefaults() {
-	o.URLPath = "/v1/metrics"
 }
 
 // OTELGRPC provides configuration settings for an open-telemetry metrics reporter.
 type OTELGRPC struct {
 	ReconnectionPeriod time.Duration `description:"The minimum amount of time between connection attempts to the target endpoint." json:"reconnectionPeriod,omitempty" toml:"reconnectionPeriod,omitempty" yaml:"reconnectionPeriod,omitempty" export:"true"`
 	ServiceConfig      string        `description:"Defines the default gRPC service config used." json:"serviceConfig,omitempty" toml:"serviceConfig,omitempty" yaml:"serviceConfig,omitempty" export:"true"`
+	Insecure           bool          `description:"Connect to endpoint using HTTP." json:"insecure,omitempty" toml:"insecure,omitempty" yaml:"insecure,omitempty" export:"true"`
 }
 
 // SetDefaults sets the default values.

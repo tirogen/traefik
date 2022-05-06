@@ -19,66 +19,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-func TestOpenTelemetry_NewController(t *testing.T) {
-	tests := []struct {
-		desc    string
-		config  types.OpenTelemetry
-		wantErr bool
-	}{
-		{
-			desc: "without configuration, HTTP By default",
-			config: types.OpenTelemetry{
-				PushInterval: ptypes.Duration(10 * time.Second),
-			},
-		},
-		{
-			desc: "with HTTP configuration",
-			config: types.OpenTelemetry{
-				HTTP:         &types.OTELHTTP{},
-				PushInterval: ptypes.Duration(10 * time.Second),
-			},
-		},
-		{
-			desc: "with GRPC configuration",
-			config: types.OpenTelemetry{
-				GRPC:         &types.OTELGRPC{},
-				PushInterval: ptypes.Duration(10 * time.Second),
-			},
-		},
-		{
-			desc: "with both HTTP, and GRPC configuration",
-			config: types.OpenTelemetry{
-				HTTP:         &types.OTELHTTP{},
-				GRPC:         &types.OTELGRPC{},
-				PushInterval: ptypes.Duration(10 * time.Second),
-			},
-			wantErr: true,
-		},
-		{
-			desc:    "with PushInterval set to 0",
-			config:  types.OpenTelemetry{PushInterval: 0},
-			wantErr: true,
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-
-		t.Run(test.desc, func(t *testing.T) {
-			t.Parallel()
-
-			registry, err := newOpenTelemetryController(context.Background(), &test.config)
-			if test.wantErr {
-				assert.Error(t, err)
-				require.Nil(t, registry)
-			} else {
-				assert.NoError(t, err)
-				require.NotNil(t, registry)
-			}
-		})
-	}
-}
-
 func TestOpenTelemetry_labels(t *testing.T) {
 	tests := []struct {
 		desc   string
@@ -383,7 +323,7 @@ func TestOpenTelemetry_GaugeCollectorSet(t *testing.T) {
 func TestOpenTelemetry(t *testing.T) {
 	t.Parallel()
 
-	c := make(chan *string, 8)
+	c := make(chan *string)
 	defer close(c)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
@@ -408,12 +348,10 @@ func TestOpenTelemetry(t *testing.T) {
 	(&cfg).SetDefaults()
 	cfg.AddRoutersLabels = true
 	cfg.Insecure = true
-	cfg.Address = ts.Listener.Addr().String()
+	cfg.Address = "toto://" + ts.Listener.Addr().String()
 	cfg.PushInterval = ptypes.Duration(10 * time.Millisecond)
 
 	registry := RegisterOpenTelemetry(context.Background(), &cfg)
-	defer StopOpenTelemetry()
-
 	require.NotNil(t, registry)
 
 	if !registry.IsEpEnabled() || !registry.IsRouterEnabled() || !registry.IsSvcEnabled() {
@@ -515,4 +453,11 @@ func TestOpenTelemetry(t *testing.T) {
 	msgServiceOpenConns := <-c
 
 	assertMessage(t, *msgServiceOpenConns, expectedServiceOpenConns)
+
+	// We need to unlock the HTTP Server for the last export call when stopping
+	// OpenTelemetry.
+	go func() {
+		<-c
+	}()
+	StopOpenTelemetry()
 }

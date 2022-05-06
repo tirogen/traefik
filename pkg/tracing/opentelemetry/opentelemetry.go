@@ -2,8 +2,8 @@ package opentelemetry
 
 import (
 	"context"
-	"errors"
 	"io"
+	"net/url"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/traefik/traefik/v2/pkg/log"
@@ -15,21 +15,12 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/encoding/gzip"
 )
 
 // Setup sets up the tracer.
 func (c *Config) Setup(componentName string) (opentracing.Tracer, io.Closer, error) {
-	if c.HTTP != nil && c.GRPC != nil {
-		return nil, nil, errors.New("cannot define HTTP and GRPC exporter concurrently")
-	}
-
-	if c.HTTP == nil && c.GRPC == nil {
-		// return nil, nil, errors.New("cannot define Open Telemetry tracer without defining one of the HTTP or GRPC exporter configuration")
-		c.HTTP = &ConfigHTTP{}
-		c.HTTP.SetDefaults()
-	}
-
 	// Tracer
 	bt := oteltracer.NewBridgeTracer()
 	// TODO add schema URL
@@ -39,77 +30,46 @@ func (c *Config) Setup(componentName string) (opentracing.Tracer, io.Closer, err
 
 	var closer io.Closer
 	var err error
-	if c.HTTP != nil {
-		closer, err = c.setupHTTPExporter(c.HTTP)
-	} else {
+	if c.GRPC != nil {
 		closer, err = c.setupGRPCExporter(c.GRPC)
+	} else {
+		closer, err = c.setupHTTPExporter()
 	}
 
 	return bt, closer, err
 }
 
-func (c *Config) setupGRPCExporter(grpc *ConfigGRPC) (io.Closer, error) {
-	// TODO: handle TLSClientConfig, DialOption
-	optsClient := []otlptracegrpc.Option{
-		otlptracegrpc.WithEndpoint(c.Endpoint),
-		otlptracegrpc.WithHeaders(c.Headers),
-		otlptracegrpc.WithReconnectionPeriod(grpc.ReconnectionPeriod),
-		otlptracegrpc.WithServiceConfig(grpc.ServiceConfig),
-		otlptracegrpc.WithTimeout(c.Timeout),
-	}
-
-	if c.Compress {
-		optsClient = append(optsClient, otlptracegrpc.WithCompressor(gzip.Name))
-	}
-
-	if c.Insecure {
-		optsClient = append(optsClient, otlptracegrpc.WithInsecure())
-	}
-
-	if c.Retry != nil {
-		optsClient = append(optsClient, otlptracegrpc.WithRetry(otlptracegrpc.RetryConfig{
-			Enabled:         true,
-			InitialInterval: c.Retry.InitialInterval,
-			MaxInterval:     c.Retry.MaxInterval,
-			MaxElapsedTime:  c.Retry.MaxElapsedTime,
-		}))
-	}
-
-	client := otlptracegrpc.NewClient(optsClient...)
-	exporter, err := otlptrace.New(context.Background(), client)
+func (c *Config) setupHTTPExporter() (io.Closer, error) {
+	u, err := url.Parse(c.Endpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter))
-	otel.SetTracerProvider(tracerProvider)
-
-	log.WithoutContext().Debug("Opentracing GRPC tracer configured")
-
-	return tpCloser{provider: tracerProvider}, nil
-}
-
-func (c *Config) setupHTTPExporter(http *ConfigHTTP) (io.Closer, error) {
 	compress := otlptracehttp.NoCompression
 	if c.Compress {
 		compress = otlptracehttp.GzipCompression
 	}
 
-	// TODO: handle TLSClientConfig
-	optsClient := []otlptracehttp.Option{
+	opts := []otlptracehttp.Option{
 		otlptracehttp.WithCompression(compress),
-		otlptracehttp.WithEndpoint(c.Endpoint),
+		otlptracehttp.WithEndpoint(u.Host),
 		otlptracehttp.WithHeaders(c.Headers),
 		otlptracehttp.WithTimeout(c.Timeout),
-		otlptracehttp.WithURLPath(http.URLPath),
 	}
 
-	if c.Insecure {
-		optsClient = append(optsClient, otlptracehttp.WithInsecure())
+	if u.Scheme == "http" {
+		opts = append(opts, otlptracehttp.WithInsecure())
 	}
+
+	// https://github.com/open-telemetry/opentelemetry-go/blob/exporters/otlp/otlpmetric/v0.30.0/exporters/otlp/otlptrace/internal/otlpconfig/options.go#L35
+	path := "/v1/traces"
+	if u.Path != "" {
+		path = u.Path
+	}
+	opts = append(opts, otlptracehttp.WithURLPath(path))
 
 	if c.Retry != nil {
-		optsClient = append(optsClient, otlptracehttp.WithRetry(otlptracehttp.RetryConfig{
+		opts = append(opts, otlptracehttp.WithRetry(otlptracehttp.RetryConfig{
 			Enabled:         true,
 			InitialInterval: c.Retry.InitialInterval,
 			MaxInterval:     c.Retry.MaxInterval,
@@ -117,7 +77,16 @@ func (c *Config) setupHTTPExporter(http *ConfigHTTP) (io.Closer, error) {
 		}))
 	}
 
-	client := otlptracehttp.NewClient(optsClient...)
+	if c.TLS != nil {
+		tlsConfig, err := c.TLS.CreateTLSConfig(context.Background())
+		if err != nil {
+			return nil, err
+		}
+
+		opts = append(opts, otlptracehttp.WithTLSClientConfig(tlsConfig))
+	}
+
+	client := otlptracehttp.NewClient(opts...)
 	exporter, err := otlptrace.New(context.Background(), client)
 	if err != nil {
 		return nil, err
@@ -131,6 +100,62 @@ func (c *Config) setupHTTPExporter(http *ConfigHTTP) (io.Closer, error) {
 	return tpCloser{provider: tracerProvider}, nil
 }
 
+func (c *Config) setupGRPCExporter(grpc *ConfigGRPC) (io.Closer, error) {
+	u, err := url.Parse(c.Endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: handle DialOption
+	opts := []otlptracegrpc.Option{
+		otlptracegrpc.WithEndpoint(u.Host),
+		otlptracegrpc.WithHeaders(c.Headers),
+		otlptracegrpc.WithReconnectionPeriod(grpc.ReconnectionPeriod),
+		otlptracegrpc.WithServiceConfig(grpc.ServiceConfig),
+		otlptracegrpc.WithTimeout(c.Timeout),
+	}
+
+	if c.Compress {
+		opts = append(opts, otlptracegrpc.WithCompressor(gzip.Name))
+	}
+
+	if grpc.Insecure {
+		opts = append(opts, otlptracegrpc.WithInsecure())
+	}
+
+	if c.Retry != nil {
+		opts = append(opts, otlptracegrpc.WithRetry(otlptracegrpc.RetryConfig{
+			Enabled:         true,
+			InitialInterval: c.Retry.InitialInterval,
+			MaxInterval:     c.Retry.MaxInterval,
+			MaxElapsedTime:  c.Retry.MaxElapsedTime,
+		}))
+	}
+
+	if c.TLS != nil {
+		tlsConfig, err := c.TLS.CreateTLSConfig(context.Background())
+		if err != nil {
+			return nil, err
+		}
+
+		opts = append(opts, otlptracegrpc.WithTLSCredentials(credentials.NewTLS(tlsConfig)))
+	}
+
+	client := otlptracegrpc.NewClient(opts...)
+	exporter, err := otlptrace.New(context.Background(), client)
+	if err != nil {
+		return nil, err
+	}
+
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter))
+	otel.SetTracerProvider(tracerProvider)
+
+	log.WithoutContext().Debug("Opentracing GRPC tracer configured")
+
+	return tpCloser{provider: tracerProvider}, nil
+}
+
+// tpCloser converts a TraceProvider into an io.Closer
 type tpCloser struct {
 	provider *sdktrace.TracerProvider
 }
