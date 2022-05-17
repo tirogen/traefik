@@ -121,6 +121,23 @@ func TestHandler(t *testing.T) {
 			},
 		},
 		{
+			desc:        "single code and query replacement",
+			errorPage:   &dynamic.ErrorPage{Service: "error", Query: "/%23toto", Status: []string{"503"}},
+			backendCode: http.StatusServiceUnavailable,
+			backendErrorHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.RequestURI != "/#toto" {
+					return
+				}
+
+				_, _ = fmt.Fprintln(w, "My 503 page.")
+			}),
+			validate: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+				assert.Equal(t, http.StatusServiceUnavailable, recorder.Code, "HTTP status")
+				assert.Contains(t, recorder.Body.String(), "My 503 page.")
+			},
+		},
+		{
 			desc:        "forward request host header",
 			errorPage:   &dynamic.ErrorPage{Service: "error", Query: "/test", Status: []string{"503"}},
 			backendCode: http.StatusServiceUnavailable,

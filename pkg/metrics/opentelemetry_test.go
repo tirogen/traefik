@@ -292,6 +292,7 @@ func TestOpenTelemetry(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
+		defer r.Body.Close()
 
 		req := pmetricotlp.NewRequest()
 		err = req.UnmarshalProto(body)
