@@ -18,6 +18,7 @@ import (
 	"github.com/traefik/traefik/v2/integration/try"
 	"github.com/traefik/traefik/v2/pkg/api"
 	"github.com/traefik/traefik/v2/pkg/log"
+	"github.com/traefik/traefik/v2/integration/vpn"
 	checker "github.com/vdemeester/shakers"
 )
 
@@ -27,6 +28,8 @@ var updateExpected = flag.Bool("update_expected", false, "Update expected files 
 type K8sSuite struct{ BaseSuite }
 
 func (s *K8sSuite) SetUpSuite(c *check.C) {
+	vpn.NewVPN()
+
 	s.createComposeProject(c, "k8s")
 	s.composeUp(c)
 
@@ -60,6 +63,8 @@ func (s *K8sSuite) TearDownSuite(c *check.C) {
 			log.WithoutContext().Warning(err)
 		}
 	}
+
+	vpn.TearDown(nil)
 }
 
 func (s *K8sSuite) TestIngressConfiguration(c *check.C) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-check/check"
 	"github.com/traefik/traefik/v2/integration/try"
+	"github.com/traefik/traefik/v2/integration/vpn"
 	checker "github.com/vdemeester/shakers"
 )
 
@@ -18,12 +19,18 @@ type ProxyProtocolSuite struct {
 }
 
 func (s *ProxyProtocolSuite) SetUpSuite(c *check.C) {
+	vpn.NewVPN()
+
 	s.createComposeProject(c, "proxy-protocol")
 	s.composeUp(c)
 
 	s.gatewayIP = s.getContainerIP(c, "traefik")
 	s.haproxyIP = s.getComposeServiceIP(c, "haproxy")
 	s.whoamiIP = s.getComposeServiceIP(c, "whoami")
+}
+
+func (s *ProxyProtocolSuite) TearDownSuite(c *check.C) {
+	vpn.TearDown(nil)
 }
 
 func (s *ProxyProtocolSuite) TestProxyProtocolTrusted(c *check.C) {

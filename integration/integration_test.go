@@ -4,11 +4,8 @@ package integration
 import (
 	"bytes"
 	"context"
-	"errors"
 	"flag"
 	"fmt"
-	"io/fs"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,6 +26,7 @@ import (
 	"github.com/fatih/structs"
 	"github.com/go-check/check"
 	"github.com/traefik/traefik/v2/pkg/log"
+	"github.com/traefik/traefik/v2/integration/vpn"
 	checker "github.com/vdemeester/shakers"
 )
 
@@ -45,22 +43,13 @@ func Test(t *testing.T) {
 
 	// TODO(mpl): very niche optimization: do not start tailscale if none of the
 	// wanted tests actually need it (e.g. KeepAliveSuite does not).
-	var (
-		vpn    *tailscaleNotSuite
-		useVPN bool
-	)
-	if os.Getenv("IN_DOCKER") != "true" {
-		vpn = setupVPN(nil, "tailscale.secret")
-		if vpn != nil {
-			defer vpn.TearDownSuite(nil)
-			useVPN = true
-		}
+	if os.Getenv("IN_DOCKER") != "true" && vpn.CanVPN() {
+		check.Suite(&AcmeSuite{})
+		check.Suite(&K8sSuite{})
+		check.Suite(&ProxyProtocolSuite{})
 	}
 
 	check.Suite(&AccessLogSuite{})
-	if !useVPN {
-		check.Suite(&AcmeSuite{})
-	}
 	check.Suite(&ConsulCatalogSuite{})
 	check.Suite(&ConsulSuite{})
 	check.Suite(&DockerComposeSuite{})
@@ -74,16 +63,10 @@ func Test(t *testing.T) {
 	check.Suite(&HostResolverSuite{})
 	check.Suite(&HTTPSSuite{})
 	check.Suite(&HTTPSuite{})
-	if !useVPN {
-		check.Suite(&K8sSuite{})
-	}
 	check.Suite(&KeepAliveSuite{})
 	check.Suite(&LogRotationSuite{})
 	check.Suite(&MarathonSuite{})
 	check.Suite(&MarathonSuite15{})
-	if !useVPN {
-		check.Suite(&ProxyProtocolSuite{})
-	}
 	check.Suite(&RateLimitSuite{})
 	check.Suite(&RedisSuite{})
 	check.Suite(&RestSuite{})
@@ -325,45 +308,4 @@ func (s *BaseSuite) getContainerIP(c *check.C, name string) string {
 
 func withConfigFile(file string) string {
 	return "--configFile=" + file
-}
-
-// tailscaleNotSuite includes a BaseSuite out of convenience, so we can benefit
-// from composeUp et co., but it is not meant to function as a TestSuite per se.
-type tailscaleNotSuite struct{ BaseSuite }
-
-// setupVPN starts tailscale on the corresponding container, and makes it a subnet
-// router, for all the other containers (whoamis, etc) subsequently started for the
-// integration tests.
-// It only does so if the file provided as argument exists, and contains a
-// tailscale auth key (an ephemeral, but reusable, one is recommended).
-//
-// Add this section to your tailscale ACLs to auto-approve the routes for the
-// containers in the docker subnet:
-//
-// "autoApprovers": {
-//   // Allow myself to automatically advertize routes for docker networks
-//   "routes": {
-//     "172.0.0.0/8": ["your_tailscale_identity"],
-//   },
-// },
-//
-// TODO(mpl): we could maybe even move this setup to the Makefile, to start it
-// and let it run (forever, or until voluntarily stopped).
-func setupVPN(c *check.C, keyFile string) *tailscaleNotSuite {
-	data, err := ioutil.ReadFile(keyFile)
-	if err != nil {
-		if !errors.Is(err, fs.ErrNotExist) {
-			log.Fatal(err)
-		}
-		return nil
-	}
-	authKey := strings.TrimSpace(string(data))
-	// TODO: copy and create versions that don't need a check.C?
-	vpn := &tailscaleNotSuite{}
-	vpn.createComposeProject(c, "tailscale")
-	vpn.composeUp(c)
-	time.Sleep(5 * time.Second)
-	// TODO(mpl): make sure this docker subnet stays the same as the one we setup in Makefile.
-	vpn.composeExec(c, "tailscaled", "tailscale", "up", "--authkey="+authKey, "--advertise-routes=172.31.42.0/24")
-	return vpn
 }

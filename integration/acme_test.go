@@ -17,6 +17,7 @@ import (
 	"github.com/traefik/traefik/v2/pkg/provider/acme"
 	"github.com/traefik/traefik/v2/pkg/testhelpers"
 	"github.com/traefik/traefik/v2/pkg/types"
+	"github.com/traefik/traefik/v2/integration/vpn"
 	checker "github.com/vdemeester/shakers"
 )
 
@@ -87,6 +88,8 @@ func setupPebbleRootCA() (*http.Transport, error) {
 }
 
 func (s *AcmeSuite) SetUpSuite(c *check.C) {
+	vpn.NewVPN()
+
 	s.createComposeProject(c, "pebble")
 	s.composeUp(c)
 
@@ -124,6 +127,8 @@ func (s *AcmeSuite) TearDownSuite(c *check.C) {
 	}
 
 	s.composeDown(c)
+
+	vpn.TearDown(nil)
 }
 
 func (s *AcmeSuite) TestHTTP01Domains(c *check.C) {
