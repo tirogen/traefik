@@ -1,17 +1,16 @@
 name: Build Binaries
 
 on:
-  pull_request:
+  push:
     branches:
-      - '*'
+      - master
 
 env:
   GO_VERSION: 1.17
   CGO_ENABLED: 0
-  PRE_TARGET: ""
+  PRE_TARGET: ''
 
 jobs:
-
   build-webui:
     runs-on: ubuntu-20.04
 
@@ -36,7 +35,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-20.04, macos-latest, windows-latest ]
+        os: [ubuntu-20.04, macos-latest, windows-latest]
     needs:
       - build-webui
     defaults:
